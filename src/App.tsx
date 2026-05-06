@@ -9,6 +9,7 @@ import { ArchiveScreen } from './screens/ArchiveScreen';
 import { MobileScreen } from './screens/MobileScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { AdminScreen } from './screens/AdminScreen';
+import { DashboardScreen } from './screens/DashboardScreen';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import { MokadData } from './types';
@@ -19,6 +20,7 @@ const data = MOKAD_DATA as unknown as MokadData;
 const NAV_ITEMS = [
   { k: 'routine', label: 'שגרה', icon: 'Pulse', cls: 'routine' },
   { k: 'emergency', label: 'אירוע חירום', icon: 'Siren' },
+  { k: 'dashboard', label: 'מצב חמ"ל', icon: 'Monitor', cls: 'brand-nav' },
   { k: 'manage', label: 'ניהול מוקד', icon: 'Settings' },
   { k: 'archive', label: 'ארכיון ודוחות', icon: 'Archive' },
   { k: 'mobile', label: 'ממשק מדווח', icon: 'User' },
@@ -213,6 +215,8 @@ function App() {
     body = <MobileScreen data={data} />;
   } else if (screen === 'admin') {
     body = <AdminScreen />;
+  } else if (screen === 'dashboard') {
+    body = <DashboardScreen />;
   }
 
   return (
