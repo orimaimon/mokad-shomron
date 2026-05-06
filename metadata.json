@@ -1,6 +1,0 @@
-{
-  "name": "Mokad Shomron Command & Control",
-  "description": "מערכת שו\"ב מתקדמת למוקד שומרון הכוללת ניהול אירועי חירום, יומן מבצעים והיררכיית משתמשים.",
-  "requestFramePermissions": [],
-  "majorCapabilities": []
-}
