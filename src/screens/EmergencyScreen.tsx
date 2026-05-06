@@ -1,7 +1,15 @@
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtTime, elapsed } from '../hooks/useClock';
+import { MokadData } from '../types';
+import { cn } from '../lib/utils';
+import { motion } from 'motion/react';
 
-export function EmergencyScreen({ data, onClose }) {
+interface EmergencyScreenProps {
+  data: MokadData;
+  onClose: () => void;
+}
+
+export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
   const ev = data.activeEvent;
   const now = useNow();
   const elapsedStr = elapsed(ev.startedAt, now.getTime());
@@ -38,7 +46,12 @@ export function EmergencyScreen({ data, onClose }) {
 
       {/* COL 1: SITUATION */}
       <div className="col">
-        <div className="panel" style={{ flex: '0 0 auto' }}>
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="panel" 
+          style={{ flex: '0 0 auto' }}
+        >
           <div className="panel-h">
             <h3>תמונת מצב עדכנית</h3>
             <span className="tag">עודכן {ev.snapshotAt}</span>
@@ -66,9 +79,15 @@ export function EmergencyScreen({ data, onClose }) {
               <div className="row"><span>טרם טופלו</span><span>{ev.casualties.untreated}</span></div>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="panel" style={{ flex: '1 1 auto', minHeight: 0 }}>
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="panel" 
+          style={{ flex: '1 1 auto', minHeight: 0 }}
+        >
           <div className="panel-h">
             <h3>פינוי</h3>
             <div className="spacer" />
@@ -85,7 +104,7 @@ export function EmergencyScreen({ data, onClose }) {
                     <td>{e.who}</td>
                     <td>
                       <span className="row-flex">
-                        {e.by.includes('מסוק') ? <Icon name="Heli" /> : <Icon name="Truck" />}
+                        {e.by.includes('מסוק') ? <Icon name="Activity" /> : <Icon name="Truck" />}
                         {e.by}
                       </span>
                     </td>
@@ -96,9 +115,15 @@ export function EmergencyScreen({ data, onClose }) {
               </tbody>
             </table>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="panel" style={{ flex: '0 0 auto' }}>
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="panel" 
+          style={{ flex: '0 0 auto' }}
+        >
           <div className="panel-h">
             <h3>כוחות פועלים</h3>
             <div className="spacer" />
@@ -115,7 +140,7 @@ export function EmergencyScreen({ data, onClose }) {
               ))}
             </div>
           </div>
-        </div>
+        </motion.div>
 
         <div className="panel" style={{ flex: '0 0 auto' }}>
           <div className="panel-h"><h3>מיקום ותיאור</h3></div>
@@ -148,7 +173,13 @@ export function EmergencyScreen({ data, onClose }) {
 
       {/* COL 2: MEDIA */}
       <div className="col">
-        <div className="panel" style={{ flex: 1, minHeight: 0 }}>
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="panel" 
+          style={{ flex: 1, minHeight: 0 }}
+        >
           <div className="panel-h">
             <h3>מדיה מהשטח</h3>
             <span className="tag">{data.media.length} פריטים</span>
@@ -162,7 +193,7 @@ export function EmergencyScreen({ data, onClose }) {
           <div className="panel-b" style={{ padding: 0 }}>
             <div className="media-grid">
               {data.media.map((m) => (
-                <div key={m.i} className={`media-card ${m.kind === 'video' ? 'video' : ''} ${m.cls}`}>
+                <div key={m.i} className={cn("media-card", m.kind === 'video' && 'video', m.cls)}>
                   {m.kind === 'photo' && (
                     <svg className="ph" viewBox="0 0 100 75" preserveAspectRatio="none"
                       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: .35 }}>
@@ -179,12 +210,18 @@ export function EmergencyScreen({ data, onClose }) {
               ))}
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* COL 3: LOG */}
       <div className="col">
-        <div className="panel" style={{ flex: 1, minHeight: 0 }}>
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.4 }}
+          className="panel" 
+          style={{ flex: 1, minHeight: 0 }}
+        >
           <div className="panel-h">
             <h3>זרם דיווחים</h3>
             <span className="tag amber">חי</span>
@@ -195,7 +232,7 @@ export function EmergencyScreen({ data, onClose }) {
           <div className="panel-b" style={{ padding: 0 }}>
             <div className="feed">
               {data.log.map((it, i) => (
-                <div key={i} className={`item ${it.urgent ? 'urgent' : ''} ${it.system ? 'system' : ''}`}>
+                <div key={i} className={cn("item", it.urgent && 'urgent', it.system && 'system')}>
                   <div className="t mono">{it.t}</div>
                   <div className="body">
                     <FormattedText text={it.text} />
@@ -205,7 +242,7 @@ export function EmergencyScreen({ data, onClose }) {
               ))}
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-export function useNow() {
+export function useNow(): Date {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -9,21 +9,21 @@ export function useNow() {
   return now;
 }
 
-const p = (n) => String(n).padStart(2, '0');
+const p = (n: number | string): string => String(n).padStart(2, '0');
 
-export function fmtTime(d) {
+export function fmtTime(d: Date): string {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-export function fmtHM(d) {
+export function fmtHM(d: Date): string {
   return `${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export function fmtDate(d) {
+export function fmtDate(d: Date): string {
   return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
 
-export function elapsed(startMs, nowMs) {
+export function elapsed(startMs: number, nowMs: number): string {
   let s = Math.max(0, Math.floor((nowMs - startMs) / 1000));
   const h = Math.floor(s / 3600); s -= h * 3600;
   const m = Math.floor(s / 60); s -= m * 60;

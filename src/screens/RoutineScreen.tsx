@@ -1,7 +1,15 @@
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtDate } from '../hooks/useClock';
+import { MokadData } from '../types';
+import { cn } from '../lib/utils';
+import { motion } from 'motion/react';
 
-export function RoutineScreen({ data, onOpenEmergency }) {
+interface RoutineScreenProps {
+  data: MokadData;
+  onOpenEmergency: () => void;
+}
+
+export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
   const r = data.routine;
   const now = useNow();
 
@@ -9,7 +17,12 @@ export function RoutineScreen({ data, onOpenEmergency }) {
     <div style={{ height: '100%', padding: 10, display: 'grid', gridTemplateColumns: '1.1fr 1fr 1fr', gap: 10, minHeight: 0 }}>
       {/* col 1 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
-        <div className="panel" style={{ flex: '0 0 auto' }}>
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="panel" 
+          style={{ flex: '0 0 auto' }}
+        >
           <div className="panel-h">
             <h3>תמונת מצב גזרה</h3>
             <div className="spacer" />
@@ -41,9 +54,15 @@ export function RoutineScreen({ data, onOpenEmergency }) {
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="panel" style={{ flex: '1 1 auto', minHeight: 0 }}>
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="panel" 
+          style={{ flex: '1 1 auto', minHeight: 0 }}
+        >
           <div className="panel-h">
             <h3>אירועים חריגים</h3>
             <div className="spacer" />
@@ -60,17 +79,23 @@ export function RoutineScreen({ data, onOpenEmergency }) {
                     <td className="mono" style={{ color: 'var(--ink-3)' }}>{inc.t}</td>
                     <td>{inc.type}</td>
                     <td style={{ color: 'var(--ink-2)' }}>{inc.loc}</td>
-                    <td><span className={`tag ${inc.sev}`}>{inc.status}</span></td>
+                    <td><span className={cn("tag", inc.sev)}>{inc.status}</span></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* col 2 - feed */}
-      <div className="panel" style={{ minHeight: 0 }}>
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="panel" 
+        style={{ minHeight: 0 }}
+      >
         <div className="panel-h">
           <h3>זרם עדכונים</h3>
           <div className="spacer" />
@@ -89,11 +114,17 @@ export function RoutineScreen({ data, onOpenEmergency }) {
             ))}
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* col 3 - roster + quick actions */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
-        <div className="panel" style={{ flex: 1, minHeight: 0 }}>
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.3 }}
+          className="panel" 
+          style={{ flex: 1, minHeight: 0 }}
+        >
           <div className="panel-h">
             <h3>בעלי תפקידים בשטח</h3>
             <div className="spacer" />
@@ -109,7 +140,7 @@ export function RoutineScreen({ data, onOpenEmergency }) {
                     <div className="meta">{person.role} · {person.task}</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
-                    <span className={`st ${person.state}`}>
+                    <span className={cn("st", person.state)}>
                       {person.state === 'field' ? 'בשטח' : person.state === 'brief' ? 'תדריך' : 'בחזרה'}
                     </span>
                     <span className="meta">יצא {person.out}</span>
@@ -118,7 +149,7 @@ export function RoutineScreen({ data, onOpenEmergency }) {
               ))}
             </div>
           </div>
-        </div>
+        </motion.div>
 
         <div className="panel" style={{ flex: '0 0 auto' }}>
           <div className="panel-h"><h3>פעולה מהירה</h3></div>

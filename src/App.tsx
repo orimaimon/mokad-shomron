@@ -7,7 +7,13 @@ import { RoutineScreen } from './screens/RoutineScreen';
 import { ManagementScreen } from './screens/ManagementScreen';
 import { ArchiveScreen } from './screens/ArchiveScreen';
 import { MobileScreen } from './screens/MobileScreen';
+import { LoginScreen } from './screens/LoginScreen';
+import { motion, AnimatePresence } from 'motion/react';
+import { cn } from './lib/utils';
+import { MokadData } from './types';
 import './App.css';
+
+const data = MOKAD_DATA as unknown as MokadData;
 
 const NAV_ITEMS = [
   { k: 'routine', label: 'שגרה', icon: 'Pulse', cls: 'routine' },
@@ -17,18 +23,18 @@ const NAV_ITEMS = [
   { k: 'mobile', label: 'ממשק מדווח', icon: 'User' },
 ];
 
-function TopBar({ screen, onScreen, emergency }) {
+function TopBar({ screen, onScreen, emergency, user, onLogout }: { screen: string, onScreen: (s: string) => void, emergency: boolean, user: any, onLogout: () => void }) {
   const now = useNow();
   return (
     <div className="topbar">
       <div className="brand">
         <div className="mark" />
         <span>מוקד שומרון</span>
-        <small>· שו"ב v2.4</small>
+        <small>· שו"ב v2.5</small>
       </div>
       <nav className="nav">
         {NAV_ITEMS.map((it) => (
-          <a key={it.k} className={`${screen === it.k ? 'on' : ''} ${it.cls || ''}`} onClick={() => onScreen(it.k)}>
+          <a key={it.k} className={cn(screen === it.k && 'on', it.cls)} onClick={() => onScreen(it.k)}>
             <span className="dot" />
             <Icon name={it.icon} />
             <span>{it.label}</span>
@@ -36,7 +42,7 @@ function TopBar({ screen, onScreen, emergency }) {
         ))}
       </nav>
       <div className="right">
-        <div className={`statepill ${emergency ? 'alert' : ''}`}>
+        <div className={cn("statepill", emergency && 'alert')}>
           <span className="led" />
           {emergency ? 'מצב חירום פעיל' : 'שגרה · המערכת תקינה'}
         </div>
@@ -45,11 +51,11 @@ function TopBar({ screen, onScreen, emergency }) {
           <b className="mono">{fmtTime(now)}</b>
         </div>
         <button className="btn icon" title="התראות"><Icon name="Bell" /></button>
-        <div className="user">
-          <div className="av">יכ</div>
+        <div className="user" style={{ cursor: 'pointer' }} onClick={onLogout}>
+          <div className="av">{user?.name?.slice(0, 2) || '??'}</div>
           <div>
-            <div style={{ color: 'var(--ink-1)', fontSize: 12 }}>יונתן כהן</div>
-            <div style={{ fontSize: 10, color: 'var(--ink-3)' }}>מוקדן ראשי</div>
+            <div style={{ color: 'var(--ink-1)', fontSize: 12 }}>{user?.name}</div>
+            <div style={{ fontSize: 10, color: 'var(--ink-3)' }}>{user?.role === 'admin' ? 'מנהל מערכת' : 'מוקדן'} · <span style={{ color: 'var(--red)' }}>התנתק</span></div>
           </div>
         </div>
       </div>
@@ -57,10 +63,22 @@ function TopBar({ screen, onScreen, emergency }) {
   );
 }
 
-function OpenEventModal({ onConfirm, onClose }) {
+function OpenEventModal({ onConfirm, onClose }: { onConfirm: () => void, onClose: () => void }) {
   return (
-    <div className="scrim" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="scrim" 
+      onClick={onClose}
+    >
+      <motion.div 
+        initial={{ scale: 0.95, opacity: 0, y: 10 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 10 }}
+        className="modal" 
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="h">
           <Icon name="Siren" lg />
           <h2>פתיחת אירוע חירום חדש</h2>
@@ -105,19 +123,47 @@ function OpenEventModal({ onConfirm, onClose }) {
           <button className="btn danger" onClick={onConfirm}><Icon name="Siren" /> פתח אירוע</button>
           <button className="btn ghost" onClick={onClose}>בטל</button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
 function App() {
+  const [user, setUser] = useState<any>(null);
+  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [emergencyActive, setEmergencyActive] = useState(true);
   const [screen, setScreen] = useState('emergency');
   const [showOpenModal, setShowOpenModal] = useState(false);
 
   useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    if (savedUser && token) {
+      setUser(JSON.parse(savedUser));
+    }
+  }, [token]);
+
+  useEffect(() => {
     document.body.classList.toggle('emergency', emergencyActive);
   }, [emergencyActive]);
+
+  const handleLogin = (token: string, userData: any) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(userData));
+    setToken(token);
+    setUser(userData);
+  };
+
+  const handleLogout = () => {
+    if (!window.confirm('האם אתה בטוח שברצונך להתנתק?')) return;
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken(null);
+    setUser(null);
+  };
+
+  if (!token) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
 
   const handleOpenEmergency = () => setShowOpenModal(true);
   const confirmOpenEmergency = () => {
@@ -133,7 +179,7 @@ function App() {
   let body;
   if (screen === 'emergency') {
     if (emergencyActive) {
-      body = <EmergencyScreen data={MOKAD_DATA} onClose={closeEmergency} />;
+      body = <EmergencyScreen data={data} onClose={closeEmergency} />;
     } else {
       body = (
         <div style={{ height: '100%', display: 'grid', placeItems: 'center', padding: 24 }}>
@@ -153,23 +199,38 @@ function App() {
       );
     }
   } else if (screen === 'routine') {
-    body = <RoutineScreen data={MOKAD_DATA} onOpenEmergency={handleOpenEmergency} />;
+    body = <RoutineScreen data={data} onOpenEmergency={handleOpenEmergency} />;
   } else if (screen === 'manage') {
-    body = <ManagementScreen data={MOKAD_DATA} />;
+    body = <ManagementScreen data={data} />;
   } else if (screen === 'archive') {
-    body = <ArchiveScreen data={MOKAD_DATA} />;
+    body = <ArchiveScreen data={data} />;
   } else if (screen === 'mobile') {
-    body = <MobileScreen data={MOKAD_DATA} />;
+    body = <MobileScreen data={data} />;
   }
 
   return (
     <div className="app">
-      <TopBar screen={screen} onScreen={setScreen} emergency={emergencyActive} />
-      <div style={{ minHeight: 0, overflow: 'hidden' }}>{body}</div>
+      <TopBar screen={screen} onScreen={setScreen} emergency={emergencyActive} user={user} onLogout={handleLogout} />
+      <main style={{ minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={screen + emergencyActive}
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -10 }}
+            transition={{ duration: 0.15 }}
+            style={{ height: '100%' }}
+          >
+            {body}
+          </motion.div>
+        </AnimatePresence>
+      </main>
 
-      {showOpenModal && (
-        <OpenEventModal onConfirm={confirmOpenEmergency} onClose={() => setShowOpenModal(false)} />
-      )}
+      <AnimatePresence>
+        {showOpenModal && (
+          <OpenEventModal onConfirm={confirmOpenEmergency} onClose={() => setShowOpenModal(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
