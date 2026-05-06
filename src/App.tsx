@@ -8,6 +8,7 @@ import { ManagementScreen } from './screens/ManagementScreen';
 import { ArchiveScreen } from './screens/ArchiveScreen';
 import { MobileScreen } from './screens/MobileScreen';
 import { LoginScreen } from './screens/LoginScreen';
+import { AdminScreen } from './screens/AdminScreen';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import { MokadData } from './types';
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { k: 'manage', label: 'ניהול מוקד', icon: 'Settings' },
   { k: 'archive', label: 'ארכיון ודוחות', icon: 'Archive' },
   { k: 'mobile', label: 'ממשק מדווח', icon: 'User' },
+  { k: 'admin', label: 'ניהול מערכת', icon: 'Shield', admin: true },
 ];
 
 function TopBar({ screen, onScreen, emergency, user, onLogout }: { screen: string, onScreen: (s: string) => void, emergency: boolean, user: any, onLogout: () => void }) {
@@ -33,13 +35,16 @@ function TopBar({ screen, onScreen, emergency, user, onLogout }: { screen: strin
         <small>· שו"ב v2.5</small>
       </div>
       <nav className="nav">
-        {NAV_ITEMS.map((it) => (
-          <a key={it.k} className={cn(screen === it.k && 'on', it.cls)} onClick={() => onScreen(it.k)}>
-            <span className="dot" />
-            <Icon name={it.icon} />
-            <span>{it.label}</span>
-          </a>
-        ))}
+        {NAV_ITEMS.map((it: any) => {
+          if (it.admin && user?.role !== 'admin') return null;
+          return (
+            <a key={it.k} className={cn(screen === it.k && 'on', it.cls)} onClick={() => onScreen(it.k)}>
+              <span className="dot" />
+              <Icon name={it.icon} />
+              <span>{it.label}</span>
+            </a>
+          );
+        })}
       </nav>
       <div className="right">
         <div className={cn("statepill", emergency && 'alert')}>
@@ -206,6 +211,8 @@ function App() {
     body = <ArchiveScreen data={data} />;
   } else if (screen === 'mobile') {
     body = <MobileScreen data={data} />;
+  } else if (screen === 'admin') {
+    body = <AdminScreen />;
   }
 
   return (

@@ -67,11 +67,16 @@ export interface RoutineIncident {
 }
 
 export interface RosterMember {
+  id: number;
   name: string;
   role: string;
   task: string;
   out: string;
-  state: 'field' | 'brief' | 'return';
+  returnTime?: string;
+  reason?: string;
+  state: 'field' | 'brief' | 'return' | 'out';
+  isOutOfSector?: boolean;
+  replacement?: string;
 }
 
 export interface RoutineMetrics {
