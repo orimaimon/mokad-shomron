@@ -320,13 +320,13 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
                 </div>
                 <button
                   className="btn ghost-red icon-sm"
-                  style={{ position: 'absolute', top: 8, left: 8, opacity: 0, transition: 'opacity .15s' }}
+                  style={{ position: 'absolute', top: 6, left: 6, opacity: 0.35, transition: 'opacity .15s', padding: '2px 4px' }}
                   onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-                  onMouseLeave={e => (e.currentTarget.style.opacity = '0')}
+                  onMouseLeave={e => (e.currentTarget.style.opacity = '0.35')}
                   onClick={() => handleDeleteFeedItem(it.id)}
                   title="מחק רשומה"
                 >
-                  <Icon name="Trash" style={{ width: 12 }} />
+                  <Icon name="Trash" style={{ width: 11 }} />
                 </button>
               </div>
             ))}
