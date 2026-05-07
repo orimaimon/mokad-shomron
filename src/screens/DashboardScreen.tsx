@@ -11,10 +11,11 @@ export function DashboardScreen() {
 
   const fetchData = async () => {
     try {
-      const [resRoster] = await Promise.all([
-        fetch('/api/roster').then(r => r.json())
+      const [resRoster, resInc] = await Promise.all([
+        fetch('/api/roster').then(r => r.json()),
+        fetch('/api/incidents').then(r => r.json()),
       ]);
-      
+
       setRoster(resRoster.map((item: any) => ({
         ...item,
         out: item.out_time,
@@ -22,14 +23,17 @@ export function DashboardScreen() {
         isOutOfSector: !!item.is_out_of_sector
       })));
 
-      // In a real app we'd fetch incidents too
-      // For now we'll simulate the "live" feel
+      const active = resInc.filter((i: any) => i.status !== 'הסתיים');
       setData({
-        incidents: [
-          { id: 1, type: 'פח"ע', loc: 'צומת תפוח', time: '14:22', status: 'active', sev: 'high' },
-          { id: 2, type: 'רפואי', loc: 'אריאל - שער ראשי', time: '15:05', status: 'active', sev: 'mid' },
-        ],
-        alerts: 2
+        incidents: active.map((i: any) => ({
+          id: i.id,
+          type: i.type,
+          loc: i.location,
+          time: new Date(i.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+          status: i.status,
+          sev: i.severity === 'red' ? 'high' : i.severity === 'amber' ? 'mid' : 'low',
+        })),
+        alerts: active.length
       });
     } catch (e) {
       console.error("Poll error", e);

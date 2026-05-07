@@ -115,12 +115,80 @@ function RosterUpdateModal({ person, onClose, onSave }: { person: RosterMember, 
   );
 }
 
+function NewIncidentModal({ onClose, onSave }: { onClose: () => void, onSave: () => void }) {
+  const [formData, setFormData] = useState({
+    type: 'תאונת דרכים',
+    loc: '',
+    sev: 'amber'
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    if (!formData.loc.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/incidents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: formData.type, location: formData.loc, severity: formData.sev })
+      });
+      if (res.ok) onSave();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="scrim" onClick={onClose} style={{ zIndex: 1000 }}>
+      <div className="modal sm" onClick={e => e.stopPropagation()}>
+        <div className="h"><h3>פתיחת אירוע שגרה חדש</h3></div>
+        <div className="b" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="field">
+            <label>סוג אירוע</label>
+            <input className="input" value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })} />
+          </div>
+          <div className="field">
+            <label>מיקום</label>
+            <input className="input" value={formData.loc} onChange={e => setFormData({ ...formData, loc: e.target.value })} />
+          </div>
+          <div className="field">
+            <label>חומרה</label>
+            <select className="input" value={formData.sev} onChange={e => setFormData({ ...formData, sev: e.target.value })}>
+              <option value="green">נמוכה</option>
+              <option value="amber">בינונית</option>
+              <option value="red">גבוהה</option>
+            </select>
+          </div>
+        </div>
+        <div className="f">
+          <button className="btn brand" onClick={handleSave} disabled={loading || !formData.loc.trim()}>פתח אירוע</button>
+          <button className="btn ghost" onClick={onClose}>ביטול</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
   const r = data.routine;
   const now = useNow();
   const [tab, setTab] = useState<'in' | 'out'>('in');
   const [roster, setRoster] = useState<RosterMember[]>([]);
   const [editingPerson, setEditingPerson] = useState<RosterMember | null>(null);
+  const [showNewIncident, setShowNewIncident] = useState(false);
+  const [reportText, setReportText] = useState('');
+
+  const handleSendReport = async () => {
+    if (!reportText.trim()) return;
+    try {
+      await fetch('/api/feed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ src: 'מוקדן', text: reportText })
+      });
+      setReportText('');
+    } catch (err) {}
+  };
 
   const fetchRoster = () => {
     fetch('/api/roster').then(res => res.json()).then(data => {
@@ -131,9 +199,6 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
         isOutOfSector: !!item.is_out_of_sector
       }));
       setRoster(mapped);
-      if (mapped.some((p: any) => p.isOutOfSector) && roster.length === 0) {
-        setTab('out');
-      }
     });
   };
 
@@ -156,6 +221,10 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
           }}
         />
       )}
+      {showNewIncident && (
+        <NewIncidentModal onClose={() => setShowNewIncident(false)} onSave={() => setShowNewIncident(false)} />
+      )}
+      
       {/* col 1 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
         <motion.div 
@@ -207,7 +276,7 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
           <div className="panel-h">
             <h3>אירועים חריגים</h3>
             <div className="spacer" />
-            <button className="btn sm"><Icon name="Plus" /> חדש</button>
+            <button className="btn sm" onClick={() => setShowNewIncident(true)}><Icon name="Plus" /> חדש</button>
           </div>
           <div className="panel-b" style={{ padding: 0 }}>
             <table className="tbl">
@@ -235,15 +304,15 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
         className="panel" 
-        style={{ minHeight: 0 }}
+        style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}
       >
         <div className="panel-h">
           <h3>זרם עדכונים</h3>
           <div className="spacer" />
           <button className="btn sm icon"><Icon name="Search" /></button>
         </div>
-        <div className="panel-b" style={{ padding: 0 }}>
-          <div className="feed">
+        <div className="panel-b" style={{ padding: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div className="feed" style={{ flex: 1, overflow: 'auto' }}>
             {r.feed.map((it, i) => (
               <div className="item" key={i}>
                 <div className="t mono">{it.t}</div>
@@ -253,6 +322,19 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
                 </div>
               </div>
             ))}
+          </div>
+          <div style={{ padding: 12, borderTop: '1px solid var(--border-1)', background: 'var(--bg-1)' }}>
+            <div className="input-group" style={{ display: 'flex', gap: 8 }}>
+              <input 
+                type="text" 
+                className="input" 
+                placeholder="הוספת דיווח ליומן..." 
+                value={reportText}
+                onChange={e => setReportText(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSendReport()}
+              />
+              <button className="btn brand icon" onClick={handleSendReport}><Icon name="Send" /></button>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -301,22 +383,6 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
                       <div className="meta">
                         {person.role} · {person.isOutOfSector ? (person.reason || 'יציאה מהגזרה') : person.task}
                       </div>
-                      {person.isOutOfSector && (
-                        <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
-                          {person.replacement && (
-                            <div className="replacement-info" style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--brand)', fontSize: 12, fontWeight: 500 }}>
-                              <Icon name="User" style={{ width: 12, height: 12 }} />
-                              <span>חליפי: {person.replacement}</span>
-                            </div>
-                          )}
-                          {person.returnTime && (
-                            <div className="return-info" style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--ink-3)', fontSize: 12 }}>
-                              <Icon name="Clock" style={{ width: 12, height: 12 }} />
-                              <span>חזרה: {person.returnTime}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
                       <span className={cn("st", person.state)}>
@@ -324,7 +390,7 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
                          person.state === 'brief' ? 'תדריך' : 
                          person.state === 'return' ? 'בחזרה' : 'לא זמין'}
                       </span>
-                      <span className="meta">מ- {person.out || person.out_time}</span>
+                      <span className="meta">מ- {person.out}</span>
                     </div>
                   </div>
                 ))}
@@ -340,7 +406,7 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
               <Icon name="Siren" lg /> פתיחת אירוע חירום חדש
             </button>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <button className="btn"><Icon name="Plus" /> דיווח חדש</button>
+              <button className="btn" onClick={() => setShowNewIncident(true)}><Icon name="Plus" /> דיווח חדש</button>
               <button className="btn"><Icon name="Doc" /> דוח שגרה</button>
             </div>
           </div>

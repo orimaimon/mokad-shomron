@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtTime, elapsed } from '../hooks/useClock';
 import { MokadData } from '../types';
@@ -9,13 +10,166 @@ interface EmergencyScreenProps {
   onClose: () => void;
 }
 
+function UpdateSituationModal({ event, onClose, onSave }: { event: any, onClose: () => void, onSave: () => void }) {
+  const [formData, setFormData] = useState({
+    dead: event.dead || 0,
+    critical: event.critical || 0,
+    serious: event.serious || 0,
+    light: event.light || 0,
+    untreated: event.untreated || 0,
+    missing: event.missing || 0,
+    trapped: event.trapped || 0,
+    description: event.description || ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/emergency/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: event.id, ...formData })
+      });
+      if (res.ok) onSave();
+    } catch {
+      alert('שגיאה בעדכון');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const numField = (label: string, key: keyof typeof formData, color?: string) => (
+    <div className="field">
+      <label style={color ? { color } : {}}>{label}</label>
+      <input
+        type="number" min={0} className="input"
+        value={formData[key] as number}
+        onChange={e => setFormData({ ...formData, [key]: parseInt(e.target.value) || 0 })}
+      />
+    </div>
+  );
+
+  return (
+    <div className="scrim" onClick={onClose} style={{ zIndex: 1000 }}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
+        <div className="h">
+          <Icon name="Edit" />
+          <h3>עדכון תמונת מצב – {event.id}</h3>
+        </div>
+        <div className="b" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            {numField('הרוגים', 'dead', 'var(--red)')}
+            {numField('אנושים', 'critical', 'var(--amber)')}
+            {numField('בינוני', 'serious', 'var(--amber)')}
+            {numField('קל', 'light')}
+            {numField('נעדרים', 'missing')}
+            {numField('לכודים', 'trapped')}
+          </div>
+          <div className="field">
+            <label>תיאור ופרטים נוספים</label>
+            <textarea
+              className="textarea" style={{ height: 100 }}
+              value={formData.description}
+              onChange={e => setFormData({ ...formData, description: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="f">
+          <button className="btn brand" onClick={handleSave} disabled={loading}>{loading ? 'שומר...' : 'שמור שינויים'}</button>
+          <button className="btn ghost" onClick={onClose}>ביטול</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddEvacModal({ eventId, onClose, onSave }: { eventId: string, onClose: () => void, onSave: () => void }) {
+  const [form, setForm] = useState({ who: '', by: '', to: '', state: 'בדרך' });
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    if (!form.who.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/evac', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: eventId, ...form })
+      });
+      if (res.ok) onSave();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="scrim" onClick={onClose} style={{ zIndex: 1000 }}>
+      <div className="modal sm" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+        <div className="h"><Icon name="Truck" /><h3>הוספת פינוי</h3></div>
+        <div className="b" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="field">
+            <label>נפגעים (תיאור)</label>
+            <input className="input" placeholder="לדוגמה: 2 פצועים בינוני" value={form.who} onChange={e => setForm({ ...form, who: e.target.value })} />
+          </div>
+          <div className="field">
+            <label>גורם מפנה</label>
+            <input className="input" placeholder="מד&quot;א / מסוק 669 / נט&quot;ן" value={form.by} onChange={e => setForm({ ...form, by: e.target.value })} />
+          </div>
+          <div className="field">
+            <label>יעד</label>
+            <input className="input" placeholder="בית חולים / נקודת איסוף" value={form.to} onChange={e => setForm({ ...form, to: e.target.value })} />
+          </div>
+          <div className="field">
+            <label>מצב</label>
+            <select className="input" value={form.state} onChange={e => setForm({ ...form, state: e.target.value })}>
+              <option>בדרך</option>
+              <option>התקבל</option>
+              <option>מטופלים, יציבים</option>
+              <option>קריטי</option>
+            </select>
+          </div>
+        </div>
+        <div className="f">
+          <button className="btn brand" onClick={handleSave} disabled={loading || !form.who.trim()}>הוסף פינוי</button>
+          <button className="btn ghost" onClick={onClose}>ביטול</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
   const ev = data.activeEvent;
   const now = useNow();
   const elapsedStr = elapsed(ev.startedAt, now.getTime());
+  const [showUpdate, setShowUpdate] = useState(false);
+  const [showEvac, setShowEvac] = useState(false);
+  const [reportText, setReportText] = useState('');
+
+  const eventFeed = data.log.filter((it: any) => !it.event_id || it.event_id === ev.id);
+
+  const handleSendReport = async () => {
+    if (!reportText.trim()) return;
+    try {
+      await fetch('/api/feed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ src: 'מוקדן', text: reportText, event_id: ev.id })
+      });
+      setReportText('');
+    } catch { /* silent */ }
+  };
 
   return (
     <div className="emerg-grid">
+      {showUpdate && (
+        <UpdateSituationModal event={ev} onClose={() => setShowUpdate(false)} onSave={() => setShowUpdate(false)} />
+      )}
+      {showEvac && (
+        <AddEvacModal eventId={ev.id} onClose={() => setShowEvac(false)} onSave={() => setShowEvac(false)} />
+      )}
+
       {/* HEADER */}
       <div className="emerg-header" style={{ gridColumn: '1/-1' }}>
         <div className="event-title" style={{ flex: 1 }}>
@@ -46,52 +200,39 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
 
       {/* COL 1: SITUATION */}
       <div className="col">
-        <motion.div 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="panel" 
-          style={{ flex: '0 0 auto' }}
-        >
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="panel" style={{ flex: '0 0 auto' }}>
           <div className="panel-h">
             <h3>תמונת מצב עדכנית</h3>
             <span className="tag">עודכן {ev.snapshotAt}</span>
             <div className="spacer" />
-            <button className="btn primary sm"><Icon name="Edit" /> עדכון תמונת מצב</button>
+            <button className="btn primary sm" onClick={() => setShowUpdate(true)}><Icon name="Edit" /> עדכון תמונת מצב</button>
           </div>
           <div className="panel-b" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div className="sit-grid">
               <div className="metric danger">
                 <div className="lbl">נפגעים – סה"כ</div>
-                <div className="num">{ev.casualties.dead + ev.casualties.critical + ev.casualties.serious + ev.casualties.light + ev.casualties.untreated}</div>
-                <div className="delta mono">+3 ↑</div>
+                <div className="num">{(ev.dead || 0) + (ev.critical || 0) + (ev.serious || 0) + (ev.light || 0) + (ev.untreated || 0)}</div>
               </div>
               <div className="metric amber">
                 <div className="lbl">לכודים / נעדרים</div>
-                <div className="num">{ev.missing.trapped + ev.missing.missing}</div>
-                <div className="delta mono">לכוד</div>
+                <div className="num">{(ev.trapped || 0) + (ev.missing || 0)}</div>
               </div>
             </div>
             <div className="cas-table">
-              <div className="row dead"><span>הרוגים</span><span>{ev.casualties.dead}</span></div>
-              <div className="row crit"><span>אנושים</span><span>{ev.casualties.critical}</span></div>
-              <div className="row serious"><span>בינוני</span><span>{ev.casualties.serious}</span></div>
-              <div className="row light"><span>קל</span><span>{ev.casualties.light}</span></div>
-              <div className="row"><span>טרם טופלו</span><span>{ev.casualties.untreated}</span></div>
+              <div className="row dead"><span>הרוגים</span><span>{ev.dead || 0}</span></div>
+              <div className="row crit"><span>אנושים</span><span>{ev.critical || 0}</span></div>
+              <div className="row serious"><span>בינוני</span><span>{ev.serious || 0}</span></div>
+              <div className="row light"><span>קל</span><span>{ev.light || 0}</span></div>
+              <div className="row"><span>טרם טופלו</span><span>{ev.untreated || 0}</span></div>
             </div>
           </div>
         </motion.div>
 
-        <motion.div 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="panel" 
-          style={{ flex: '1 1 auto', minHeight: 0 }}
-        >
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="panel" style={{ flex: '1 1 auto', minHeight: 0 }}>
           <div className="panel-h">
             <h3>פינוי</h3>
             <div className="spacer" />
-            <button className="btn sm"><Icon name="Plus" /> הוספת פינוי</button>
+            <button className="btn sm" onClick={() => setShowEvac(true)}><Icon name="Plus" /> הוספת פינוי</button>
           </div>
           <div className="panel-b" style={{ padding: 0 }}>
             <table className="tbl">
@@ -99,7 +240,7 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
                 <tr><th>נפגעים</th><th>גורם</th><th>יעד</th><th>מצב</th></tr>
               </thead>
               <tbody>
-                {ev.evac.map((e, i) => (
+                {(ev.evac || []).map((e: any, i: number) => (
                   <tr key={i}>
                     <td>{e.who}</td>
                     <td>
@@ -117,23 +258,17 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
           </div>
         </motion.div>
 
-        <motion.div 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="panel" 
-          style={{ flex: '0 0 auto' }}
-        >
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="panel" style={{ flex: '0 0 auto' }}>
           <div className="panel-h">
             <h3>כוחות פועלים</h3>
             <div className="spacer" />
-            <span className="tag">{ev.forces.reduce((s, f) => s + f.count, 0)} סה"כ</span>
+            <span className="tag">{(ev.forces || []).reduce((s: number, f: any) => s + f.count, 0)} סה"כ</span>
           </div>
           <div className="panel-b" style={{ padding: 0 }}>
             <div className="roster" style={{ maxHeight: 200, overflow: 'auto' }}>
-              {ev.forces.map((f, i) => (
+              {(ev.forces || []).map((f: any, i: number) => (
                 <div className="r" key={i}>
-                  <div className="av"><Icon name={f.icon} /></div>
+                  <div className="av"><Icon name={f.icon || 'Shield'} /></div>
                   <div><div className="name">{f.name}</div></div>
                   <div className="meta mono">×{f.count}</div>
                 </div>
@@ -173,16 +308,10 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
 
       {/* COL 2: MEDIA */}
       <div className="col">
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="panel" 
-          style={{ flex: 1, minHeight: 0 }}
-        >
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="panel" style={{ flex: 1, minHeight: 0 }}>
           <div className="panel-h">
             <h3>מדיה מהשטח</h3>
-            <span className="tag">{data.media.length} פריטים</span>
+            <span className="tag">{(ev.media || []).length} פריטים</span>
             <div className="spacer" />
             <div className="seg">
               <button className="on">הכל</button>
@@ -192,8 +321,8 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
           </div>
           <div className="panel-b" style={{ padding: 0 }}>
             <div className="media-grid">
-              {data.media.map((m) => (
-                <div key={m.i} className={cn("media-card", m.kind === 'video' && 'video', m.cls)}>
+              {(ev.media || []).map((m: any) => (
+                <div key={m.i ?? m.id} className={cn("media-card", m.kind === 'video' && 'video', m.cls)}>
                   {m.kind === 'photo' && (
                     <svg className="ph" viewBox="0 0 100 75" preserveAspectRatio="none"
                       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: .35 }}>
@@ -201,13 +330,16 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
                       <path d="M0 60 L 30 35 L 55 50 L 80 30 L 100 45 L 100 75 L 0 75 Z" fill="#2a3344" />
                     </svg>
                   )}
-                  <div className="badge mono">{m.kind === 'video' ? m.dur : m.t}</div>
+                  <div className="badge mono">{m.kind === 'video' ? m.dur : m.t || m.time}</div>
                   <div className="cap">
                     {m.cap}<br />
-                    <span style={{ opacity: .7, fontFamily: 'var(--mono)', fontSize: 10 }}>{m.t}</span>
+                    <span style={{ opacity: .7, fontFamily: 'var(--mono)', fontSize: 10 }}>{m.t || m.time}</span>
                   </div>
                 </div>
               ))}
+              {(ev.media || []).length === 0 && (
+                <div style={{ padding: 20, color: 'var(--ink-4)', textAlign: 'center', gridColumn: '1/-1' }}>אין מדיה לאירוע זה</div>
+              )}
             </div>
           </div>
         </motion.div>
@@ -215,13 +347,7 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
 
       {/* COL 3: LOG */}
       <div className="col">
-        <motion.div 
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.4 }}
-          className="panel" 
-          style={{ flex: 1, minHeight: 0 }}
-        >
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }} className="panel" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <div className="panel-h">
             <h3>זרם דיווחים</h3>
             <span className="tag amber">חי</span>
@@ -229,9 +355,9 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
             <button className="btn sm icon" title="חיפוש"><Icon name="Search" /></button>
             <button className="btn sm icon" title="סינון"><Icon name="Filter" /></button>
           </div>
-          <div className="panel-b" style={{ padding: 0 }}>
-            <div className="feed">
-              {data.log.map((it, i) => (
+          <div className="panel-b" style={{ padding: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div className="feed" style={{ flex: 1, overflow: 'auto' }}>
+              {eventFeed.map((it, i) => (
                 <div key={i} className={cn("item", it.urgent && 'urgent', it.system && 'system')}>
                   <div className="t mono">{it.t}</div>
                   <div className="body">
@@ -240,6 +366,21 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
                   </div>
                 </div>
               ))}
+              {eventFeed.length === 0 && (
+                <div style={{ padding: 20, color: 'var(--ink-4)', textAlign: 'center' }}>אין דיווחים עדיין</div>
+              )}
+            </div>
+            <div style={{ padding: 10, borderTop: '1px solid var(--border-1)', background: 'var(--bg-1)' }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text" className="input"
+                  placeholder="הוסף דיווח לאירוע..."
+                  value={reportText}
+                  onChange={e => setReportText(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSendReport()}
+                />
+                <button className="btn brand icon" onClick={handleSendReport}><Icon name="Send" /></button>
+              </div>
             </div>
           </div>
         </motion.div>

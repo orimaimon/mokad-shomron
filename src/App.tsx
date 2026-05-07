@@ -70,7 +70,15 @@ function TopBar({ screen, onScreen, emergency, user, onLogout }: { screen: strin
   );
 }
 
-function OpenEventModal({ onConfirm, onClose }: { onConfirm: () => void, onClose: () => void }) {
+function OpenEventModal({ onConfirm, onClose }: { onConfirm: (data: any) => void, onClose: () => void }) {
+  const [formData, setFormData] = useState({
+    type: 'פח"ע - ישוב',
+    scene_name: '',
+    location: '',
+    grid: '',
+    description: ''
+  });
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -94,7 +102,11 @@ function OpenEventModal({ onConfirm, onClose }: { onConfirm: () => void, onClose
           <div className="fieldrow">
             <div className="field">
               <label>סוג אירוע</label>
-              <select className="input">
+              <select 
+                className="input" 
+                value={formData.type}
+                onChange={e => setFormData({ ...formData, type: e.target.value })}
+              >
                 <option>פח"ע - ישוב</option>
                 <option>פח"ע ציר</option>
                 <option>ת"ד</option>
@@ -105,29 +117,55 @@ function OpenEventModal({ onConfirm, onClose }: { onConfirm: () => void, onClose
             </div>
             <div className="field">
               <label>שם זירה (חובה)</label>
-              <input className="input" placeholder='לדוגמה: זירת חפ"ק' />
+              <input 
+                className="input" 
+                placeholder='לדוגמה: זירת חפ"ק' 
+                value={formData.scene_name}
+                onChange={e => setFormData({ ...formData, scene_name: e.target.value })}
+              />
             </div>
           </div>
           <div className="fieldrow">
             <div className="field">
               <label>מיקום</label>
-              <input className="input" placeholder="יישוב / ציר" />
+              <input 
+                className="input" 
+                placeholder="יישוב / ציר" 
+                value={formData.location}
+                onChange={e => setFormData({ ...formData, location: e.target.value })}
+              />
             </div>
             <div className="field">
               <label>נ"צ</label>
-              <input className="input mono" placeholder="0000/0000" />
+              <input 
+                className="input mono" 
+                placeholder="0000/0000" 
+                value={formData.grid}
+                onChange={e => setFormData({ ...formData, grid: e.target.value })}
+              />
             </div>
           </div>
           <div className="field">
             <label>תיאור ראשוני</label>
-            <textarea className="textarea" placeholder="פרטים מהשטח, מי דיווח, סוג האירוע..." />
+            <textarea 
+              className="textarea" 
+              placeholder="פרטים מהשטח, מי דיווח, סוג האירוע..." 
+              value={formData.description}
+              onChange={e => setFormData({ ...formData, description: e.target.value })}
+            />
           </div>
           <div style={{ padding: 10, background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.3)', borderRadius: 6, fontSize: 12, color: '#ffb4b4', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Icon name="Bell" /> פעולה זו תפעיל את מסך החירום עבור כל המוקדנים והצופים המחוברים
           </div>
         </div>
         <div className="f">
-          <button className="btn danger" onClick={onConfirm}><Icon name="Siren" /> פתח אירוע</button>
+          <button 
+            className="btn danger" 
+            onClick={() => onConfirm(formData)}
+            disabled={!formData.scene_name}
+          >
+            <Icon name="Siren" /> פתח אירוע
+          </button>
           <button className="btn ghost" onClick={onClose}>בטל</button>
         </div>
       </motion.div>
@@ -138,16 +176,60 @@ function OpenEventModal({ onConfirm, onClose }: { onConfirm: () => void, onClose
 function App() {
   const [user, setUser] = useState<any>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-  const [emergencyActive, setEmergencyActive] = useState(true);
-  const [screen, setScreen] = useState('emergency');
+  const [emergencyActive, setEmergencyActive] = useState(false);
+  const [screen, setScreen] = useState('routine');
   const [showOpenModal, setShowOpenModal] = useState(false);
+  
+  const [activeEvent, setActiveEvent] = useState<any>(null);
+  const [incidents, setIncidents] = useState<any[]>([]);
+  const [feed, setFeed] = useState<any[]>([]);
+  const [roster, setRoster] = useState<any[]>([]);
 
+  // Auth check
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser && token) {
       setUser(JSON.parse(savedUser));
     }
   }, [token]);
+
+  // Data Polling
+  useEffect(() => {
+    if (!token) return;
+
+    const fetchData = async () => {
+      try {
+        const [eventRes, incRes, feedRes, rosterRes] = await Promise.all([
+          fetch('/api/emergency/active'),
+          fetch('/api/incidents'),
+          fetch('/api/feed'),
+          fetch('/api/roster')
+        ]);
+
+        const eventData = await eventRes.json();
+        const incData = await incRes.json();
+        const feedData = await feedRes.json();
+        const rosterData = await rosterRes.json();
+
+        setActiveEvent(eventData);
+        setEmergencyActive(!!eventData);
+        setIncidents(incData);
+        setFeed(feedData);
+        setRoster(rosterData);
+
+        // Auto-switch to emergency if just started
+        if (eventData && screen === 'routine') {
+          setScreen('emergency');
+        }
+      } catch (err) {
+        console.error('Failed to fetch data', err);
+      }
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 3000); // Poll every 3 seconds
+    return () => clearInterval(interval);
+  }, [token, screen]);
 
   useEffect(() => {
     document.body.classList.toggle('emergency', emergencyActive);
@@ -173,20 +255,74 @@ function App() {
   }
 
   const handleOpenEmergency = () => setShowOpenModal(true);
-  const confirmOpenEmergency = () => {
-    setShowOpenModal(false);
-    setEmergencyActive(true);
-    setScreen('emergency');
+  
+  const confirmOpenEmergency = async (formData: any) => {
+    try {
+      const res = await fetch('/api/emergency/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      if (res.ok) {
+        setShowOpenModal(false);
+        // Polling will catch the update
+      }
+    } catch (err) {
+      alert('שגיאה בפתיחת אירוע');
+    }
   };
-  const closeEmergency = () => {
-    setEmergencyActive(false);
-    setScreen('routine');
+
+  const handleCloseEmergency = async () => {
+    if (!window.confirm('האם אתה בטוח שברצונך לסגור את האירוע?')) return;
+    try {
+      await fetch('/api/emergency/close', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: activeEvent.id })
+      });
+      setEmergencyActive(false);
+      setScreen('routine');
+    } catch (err) {
+      alert('שגיאה בסגירת אירוע');
+    }
+  };
+
+  // Normalize DB snake_case → camelCase for active event
+  const mappedEvent = activeEvent ? {
+    ...activeEvent,
+    sceneName: activeEvent.scene_name,
+    startedAt: activeEvent.started_at,
+    snapshotAt: activeEvent.snapshot_at,
+  } : data.activeEvent;
+
+  const mappedFeed = feed.map((it: any) => ({ ...it, t: it.time }));
+
+  // Construct data object for screens
+  const fullData: MokadData = {
+    ...data,
+    activeEvent: mappedEvent,
+    log: mappedFeed,
+    routine: {
+      incidents: incidents.map(i => ({
+        ...i,
+        loc: i.location,
+        t: new Date(i.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+        sev: i.severity,
+      })),
+      feed: mappedFeed,
+      roster: roster.map(r => ({ ...r, out: r.out_time, isOutOfSector: !!r.is_out_of_sector })),
+      metrics: {
+        ...data.routine.metrics,
+        open: incidents.filter(i => i.status !== 'הסתיים').length,
+        total: roster.length
+      }
+    }
   };
 
   let body;
   if (screen === 'emergency') {
     if (emergencyActive) {
-      body = <EmergencyScreen data={data} onClose={closeEmergency} />;
+      body = <EmergencyScreen data={fullData} onClose={handleCloseEmergency} />;
     } else {
       body = (
         <div style={{ height: '100%', display: 'grid', placeItems: 'center', padding: 24 }}>
@@ -206,13 +342,13 @@ function App() {
       );
     }
   } else if (screen === 'routine') {
-    body = <RoutineScreen data={data} onOpenEmergency={handleOpenEmergency} />;
+    body = <RoutineScreen data={fullData} onOpenEmergency={handleOpenEmergency} />;
   } else if (screen === 'manage') {
-    body = <ManagementScreen data={data} />;
+    body = <ManagementScreen data={fullData} />;
   } else if (screen === 'archive') {
-    body = <ArchiveScreen data={data} />;
+    body = <ArchiveScreen data={fullData} />;
   } else if (screen === 'mobile') {
-    body = <MobileScreen data={data} />;
+    body = <MobileScreen data={fullData} />;
   } else if (screen === 'admin') {
     body = <AdminScreen />;
   } else if (screen === 'dashboard') {

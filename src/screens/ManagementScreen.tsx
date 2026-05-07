@@ -1,16 +1,33 @@
 import { useState } from 'react';
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtHM } from '../hooks/useClock';
+import { MokadData } from '../types';
 
-export function ManagementScreen({ data }) {
-  const [editingId, setEditingId] = useState(null);
+export function ManagementScreen({ data }: { data: MokadData }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
   const now = useNow();
   const [report, setReport] = useState({
     time: fmtHM(now),
-    author: 'יונתן כהן (מוקדן)',
+    author: 'מוקדן',
     text: '',
     scene: 'זירת חפ"ק ראשית',
   });
+  const [sending, setSending] = useState(false);
+
+  const handleSendReport = async () => {
+    if (!report.text.trim()) return;
+    setSending(true);
+    try {
+      await fetch('/api/feed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ src: report.author || 'מוקדן', text: report.text })
+      });
+      setReport(r => ({ ...r, text: '', time: fmtHM(new Date()) }));
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <div style={{ height: '100%', padding: 10, display: 'grid', gridTemplateColumns: '1fr 380px', gap: 10, minHeight: 0 }}>
@@ -118,7 +135,9 @@ export function ManagementScreen({ data }) {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn primary" style={{ flex: 1 }}><Icon name="Send" /> שלח למסך אירוע</button>
+              <button className="btn primary" style={{ flex: 1 }} onClick={handleSendReport} disabled={sending || !report.text.trim()}>
+                <Icon name="Send" /> {sending ? 'שולח...' : 'שלח למסך אירוע'}
+              </button>
               <button className="btn icon" title="צרף מדיה"><Icon name="Image" /></button>
             </div>
           </div>
