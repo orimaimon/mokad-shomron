@@ -91,13 +91,14 @@ function OpenEventModal({ onConfirm, onClose }: { onConfirm: (data: any) => void
         initial={{ scale: 0.95, opacity: 0, y: 10 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 10 }}
-        className="modal" 
+        className="modal"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="h">
           <Icon name="Siren" lg />
           <h2>פתיחת אירוע חירום חדש</h2>
         </div>
+        <form onSubmit={e => { e.preventDefault(); if (formData.scene_name) onConfirm(formData); }}>
         <div className="b">
           <div className="fieldrow">
             <div className="field">
@@ -159,15 +160,16 @@ function OpenEventModal({ onConfirm, onClose }: { onConfirm: (data: any) => void
           </div>
         </div>
         <div className="f">
-          <button 
-            className="btn danger" 
-            onClick={() => onConfirm(formData)}
+          <button
+            type="submit"
+            className="btn danger"
             disabled={!formData.scene_name}
           >
             <Icon name="Siren" /> פתח אירוע
           </button>
-          <button className="btn ghost" onClick={onClose}>בטל</button>
+          <button type="button" className="btn ghost" onClick={onClose}>בטל</button>
         </div>
+        </form>
       </motion.div>
     </motion.div>
   );

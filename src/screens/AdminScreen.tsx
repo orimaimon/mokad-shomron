@@ -74,6 +74,7 @@ export function AdminScreen() {
               <Icon name="Users" />
               <h3>{modal.user ? 'עריכת משתמש' : 'משתמש חדש'}</h3>
             </div>
+            <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
             <div className="b" style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
               <div className="input-group">
                 <label>שם מלא</label>
@@ -96,9 +97,10 @@ export function AdminScreen() {
               </div>
             </div>
             <div className="f">
-              <button className="btn brand" onClick={handleSave}>שמור</button>
-              <button className="btn ghost" onClick={() => setModal({ open: false })}>ביטול</button>
+              <button type="submit" className="btn brand">שמור</button>
+              <button type="button" className="btn ghost" onClick={() => setModal({ open: false })}>ביטול</button>
             </div>
+            </form>
           </div>
         </div>
       )}

@@ -56,6 +56,7 @@ function RosterUpdateModal({ person, onClose, onSave }: { person: RosterMember, 
           <Icon name="User" />
           <h3>עדכון סטטוס: {person.name}</h3>
         </div>
+        <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
         <div className="b" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', background: 'var(--bg-2)', padding: '12px', borderRadius: 8 }}>
             <input type="checkbox" checked={isOut} onChange={e => setIsOut(e.target.checked)} />
@@ -93,9 +94,10 @@ function RosterUpdateModal({ person, onClose, onSave }: { person: RosterMember, 
           )}
         </div>
         <div className="f">
-          <button className="btn brand" onClick={handleSave} disabled={loading}>{loading ? 'שומר...' : 'שמור עדכון'}</button>
-          <button className="btn ghost" onClick={onClose}>ביטול</button>
+          <button type="submit" className="btn brand" disabled={loading}>{loading ? 'שומר...' : 'שמור עדכון'}</button>
+          <button type="button" className="btn ghost" onClick={onClose}>ביטול</button>
         </div>
+        </form>
       </div>
     </div>
   );
@@ -128,6 +130,7 @@ function NewIncidentModal({ onClose, onSave }: { onClose: () => void, onSave: ()
     <div className="scrim" onClick={onClose} style={{ zIndex: 1000 }}>
       <div className="modal sm" onClick={e => e.stopPropagation()}>
         <div className="h"><h3>פתיחת אירוע שגרה חדש</h3></div>
+        <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
         <div className="b" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="field">
             <label>סוג אירוע</label>
@@ -147,9 +150,10 @@ function NewIncidentModal({ onClose, onSave }: { onClose: () => void, onSave: ()
           </div>
         </div>
         <div className="f">
-          <button className="btn brand" onClick={handleSave} disabled={loading || !formData.loc.trim()}>פתח אירוע</button>
-          <button className="btn ghost" onClick={onClose}>ביטול</button>
+          <button type="submit" className="btn brand" disabled={loading || !formData.loc.trim()}>פתח אירוע</button>
+          <button type="button" className="btn ghost" onClick={onClose}>ביטול</button>
         </div>
+        </form>
       </div>
     </div>
   );

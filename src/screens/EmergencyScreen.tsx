@@ -57,6 +57,7 @@ function UpdateSituationModal({ event, onClose, onSave }: { event: any, onClose:
           <Icon name="Edit" />
           <h3>עדכון תמונת מצב – {event.id}</h3>
         </div>
+        <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
         <div className="b" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             {numField('הרוגים', 'dead', 'var(--red)')}
@@ -76,9 +77,10 @@ function UpdateSituationModal({ event, onClose, onSave }: { event: any, onClose:
           </div>
         </div>
         <div className="f">
-          <button className="btn brand" onClick={handleSave} disabled={loading}>{loading ? 'שומר...' : 'שמור שינויים'}</button>
-          <button className="btn ghost" onClick={onClose}>ביטול</button>
+          <button type="submit" className="btn brand" disabled={loading}>{loading ? 'שומר...' : 'שמור שינויים'}</button>
+          <button type="button" className="btn ghost" onClick={onClose}>ביטול</button>
         </div>
+        </form>
       </div>
     </div>
   );
@@ -107,6 +109,7 @@ function AddEvacModal({ eventId, onClose, onSave }: { eventId: string, onClose: 
     <div className="scrim" onClick={onClose} style={{ zIndex: 1000 }}>
       <div className="modal sm" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
         <div className="h"><Icon name="Truck" /><h3>הוספת פינוי</h3></div>
+        <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
         <div className="b" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="field">
             <label>נפגעים (תיאור)</label>
@@ -131,9 +134,10 @@ function AddEvacModal({ eventId, onClose, onSave }: { eventId: string, onClose: 
           </div>
         </div>
         <div className="f">
-          <button className="btn brand" onClick={handleSave} disabled={loading || !form.who.trim()}>הוסף פינוי</button>
-          <button className="btn ghost" onClick={onClose}>ביטול</button>
+          <button type="submit" className="btn brand" disabled={loading || !form.who.trim()}>הוסף פינוי</button>
+          <button type="button" className="btn ghost" onClick={onClose}>ביטול</button>
         </div>
+        </form>
       </div>
     </div>
   );
