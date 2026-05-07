@@ -1,127 +1,562 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Icon } from '../components/Icons';
+import { cn } from '../lib/utils';
+import { MokadData } from '../types';
 
-export function ArchiveScreen({ data }) {
-  const [selected, setSelected] = useState(data.archive[0]);
+type ReportType = 'daily' | 'event' | 'roster';
+
+// ── Report content components ─────────────────────────────────────────────
+
+function ReportHeader({ title, subtitle, date, generatedAt }: any) {
+  return (
+    <div className="rp-header">
+      <div>
+        <h1>מוקד שומרון – שו"ב</h1>
+        <div style={{ fontSize: 15, fontWeight: 600, marginTop: 4 }}>{title}</div>
+        {subtitle && <div className="rp-meta">{subtitle}</div>}
+      </div>
+      <div style={{ textAlign: 'left' }}>
+        <div style={{ fontWeight: 600 }}>{date}</div>
+        <div className="rp-meta">הופק: {generatedAt}</div>
+        <div className="rp-meta" style={{ marginTop: 4, letterSpacing: '.05em', opacity: .6 }}>MOKAD SHOMRON · C2</div>
+      </div>
+    </div>
+  );
+}
+
+function StateLabel({ state }: { state: string }) {
+  const map: Record<string, string> = { field: 'בשטח', brief: 'תדריך', return: 'בחזרה', out: 'מחוץ לגזרה' };
+  return <span>{map[state] ?? state}</span>;
+}
+
+function SevLabel({ sev }: { sev: string }) {
+  if (sev === 'red') return <span className="sev-red">גבוהה</span>;
+  if (sev === 'amber') return <span className="sev-amber">בינונית</span>;
+  return <span className="sev-green">נמוכה</span>;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const cls = status === 'הסתיים' ? 'status-done' : status === 'בכוח' ? 'status-active' : 'status-open';
+  return <span className={`status-badge ${cls}`}>{status}</span>;
+}
+
+// ── Daily Report ──────────────────────────────────────────────────────────
+
+function DailyReportContent({ data }: { data: any }) {
+  const inSector = data.roster.filter((r: any) => !r.is_out_of_sector);
+  const outOfSector = data.roster.filter((r: any) => r.is_out_of_sector);
+  const openInc = data.incidents.filter((i: any) => i.status !== 'הסתיים');
+
+  return (
+    <>
+      <ReportHeader
+        title="דוח שגרה יומי"
+        date={data.date}
+        generatedAt={data.generated_at}
+      />
+
+      {/* Summary */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 20, padding: '12px 0', borderBottom: '1px solid #ddd' }}>
+        {[
+          { l: 'בעלי תפקידים סה"כ', v: data.roster.length },
+          { l: 'בשטח', v: inSector.filter((r: any) => r.state === 'field').length },
+          { l: 'מחוץ לגזרה', v: outOfSector.length },
+          { l: 'אירועים פתוחים', v: openInc.length },
+        ].map(s => (
+          <div key={s.l} style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1 }}>{s.v}</div>
+            <div style={{ fontSize: 11, color: '#666', marginTop: 3 }}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Roster */}
+      <h2>1. מצב בעלי תפקידים</h2>
+      <table>
+        <thead><tr><th>שם</th><th>תפקיד</th><th>משימה</th><th>מצב</th><th>טלפון</th><th>טלפון מבצעי</th></tr></thead>
+        <tbody>
+          {data.roster.map((r: any) => (
+            <tr key={r.id}>
+              <td style={{ fontWeight: 600 }}>{r.name}</td>
+              <td>{r.role}</td>
+              <td>{r.task}</td>
+              <td><StateLabel state={r.state} /></td>
+              <td style={{ fontFamily: 'monospace' }}>{r.phone || '—'}</td>
+              <td style={{ fontFamily: 'monospace' }}>{r.operational_phone || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Out of sector */}
+      {outOfSector.length > 0 && (
+        <>
+          <h2>2. יציאות מגזרה</h2>
+          <table>
+            <thead><tr><th>שם</th><th>תפקיד</th><th>מחליף</th><th>טלפון מחליף</th><th>זמן חזרה משוער</th></tr></thead>
+            <tbody>
+              {outOfSector.map((r: any) => (
+                <tr key={r.id}>
+                  <td style={{ fontWeight: 600 }}>{r.name}</td>
+                  <td>{r.role}</td>
+                  <td>{r.replacement || '—'}</td>
+                  <td style={{ fontFamily: 'monospace' }}>{r.replacement_phone || '—'}</td>
+                  <td style={{ fontFamily: 'monospace' }}>{r.return_time || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {/* Incidents */}
+      <h2>{outOfSector.length > 0 ? '3' : '2'}. אירועים חריגים</h2>
+      {data.incidents.length === 0
+        ? <p style={{ color: '#666' }}>לא נרשמו אירועים</p>
+        : (
+          <table>
+            <thead><tr><th>שעה</th><th>סוג</th><th>מיקום</th><th>סטטוס</th><th>חומרה</th></tr></thead>
+            <tbody>
+              {data.incidents.map((i: any) => (
+                <tr key={i.id}>
+                  <td style={{ fontFamily: 'monospace' }}>{new Date(i.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</td>
+                  <td>{i.type}</td>
+                  <td>{i.location}</td>
+                  <td><StatusBadge status={i.status} /></td>
+                  <td><SevLabel sev={i.severity} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+      {/* Feed */}
+      {data.feed.length > 0 && (
+        <>
+          <h2>{outOfSector.length > 0 ? '4' : '3'}. יומן עדכונים (אחרון)</h2>
+          <table>
+            <thead><tr><th>שעה</th><th>מקור</th><th>תוכן</th></tr></thead>
+            <tbody>
+              {data.feed.slice(0, 30).map((f: any) => (
+                <tr key={f.id}>
+                  <td style={{ fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{f.time}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{f.src}</td>
+                  <td>{f.text}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      <Signature />
+    </>
+  );
+}
+
+// ── Emergency Event Report ────────────────────────────────────────────────
+
+function EventReportContent({ data }: { data: any }) {
+  const start = data.started_at ? new Date(data.started_at) : null;
+  const startStr = start ? start.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+  const totalCas = (data.dead || 0) + (data.critical || 0) + (data.serious || 0) + (data.light || 0) + (data.untreated || 0);
+
+  return (
+    <>
+      <ReportHeader
+        title="דוח אירוע חירום"
+        subtitle={`מזהה: ${data.id} · ${data.is_active ? 'פעיל' : 'סגור'}`}
+        date={startStr}
+        generatedAt={new Date().toLocaleString('he-IL')}
+      />
+
+      {/* Event details */}
+      <table style={{ marginBottom: 16 }}>
+        <tbody>
+          <tr><td style={{ fontWeight: 700, width: '20%' }}>סוג אירוע</td><td>{data.type}</td><td style={{ fontWeight: 700 }}>מיקום</td><td>{data.location}</td></tr>
+          <tr><td style={{ fontWeight: 700 }}>שם זירה</td><td>{data.scene_name}</td><td style={{ fontWeight: 700 }}>נ"צ</td><td style={{ fontFamily: 'monospace' }}>{data.grid || '—'}</td></tr>
+          <tr><td style={{ fontWeight: 700 }}>פתיחה</td><td style={{ fontFamily: 'monospace' }}>{startStr}</td><td style={{ fontWeight: 700 }}>עדכון אחרון</td><td style={{ fontFamily: 'monospace' }}>{data.snapshot_at}</td></tr>
+        </tbody>
+      </table>
+
+      {/* Casualties summary */}
+      <h2>1. תמונת מצב – נפגעים</h2>
+      <div className="cas-summary">
+        {[
+          { l: 'הרוגים', v: data.dead || 0, c: '#555' },
+          { l: 'אנושים', v: data.critical || 0, c: '#dc2626' },
+          { l: 'בינוני', v: data.serious || 0, c: '#d97706' },
+          { l: 'קל', v: data.light || 0, c: '#ca8a04' },
+          { l: 'טרם טופלו', v: data.untreated || 0, c: '#6b7280' },
+          { l: 'נעדרים', v: data.missing || 0, c: '#2563eb' },
+          { l: 'לכודים', v: data.trapped || 0, c: '#7c3aed' },
+        ].map(c => (
+          <div key={c.l} className="cas-box">
+            <div className="n" style={{ color: c.v > 0 ? c.c : '#ccc' }}>{c.v}</div>
+            <div className="l">{c.l}</div>
+          </div>
+        ))}
+      </div>
+      <p style={{ fontSize: 12, color: '#444' }}>סה"כ נפגעים: <strong>{totalCas}</strong> · לכודים ונעדרים: <strong>{(data.trapped || 0) + (data.missing || 0)}</strong></p>
+
+      {/* Description */}
+      {data.description && (
+        <>
+          <h2>2. תיאור האירוע</h2>
+          <p style={{ background: '#f5f5f5', padding: '10px 14px', borderRadius: 4, fontSize: 13 }}>{data.description}</p>
+        </>
+      )}
+
+      {/* Evac */}
+      <h2>{data.description ? '3' : '2'}. פינויים</h2>
+      {(!data.evac || data.evac.length === 0)
+        ? <p style={{ color: '#666' }}>לא בוצעו פינויים</p>
+        : (
+          <table>
+            <thead><tr><th>נפגעים</th><th>גורם מפנה</th><th>יעד</th><th>מצב</th></tr></thead>
+            <tbody>
+              {data.evac.map((e: any, i: number) => (
+                <tr key={i}><td>{e.who}</td><td>{e.by}</td><td>{e.to}</td><td>{e.state}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+      {/* Forces */}
+      {data.forces && data.forces.length > 0 && (
+        <>
+          <h2>{data.description ? '4' : '3'}. כוחות שפעלו</h2>
+          <table>
+            <thead><tr><th>כוח</th><th>כמות</th></tr></thead>
+            <tbody>
+              {data.forces.map((f: any, i: number) => (
+                <tr key={i}><td>{f.name}</td><td>{f.count}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {/* Feed timeline */}
+      {data.feed && data.feed.length > 0 && (
+        <>
+          <h2>ציר זמן דיווחים</h2>
+          <table>
+            <thead><tr><th>שעה</th><th>מקור</th><th>דיווח</th></tr></thead>
+            <tbody>
+              {data.feed.map((f: any) => (
+                <tr key={f.id}>
+                  <td style={{ fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{f.time}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{f.src}</td>
+                  <td>{f.text}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      <Signature />
+    </>
+  );
+}
+
+// ── Roster Report ─────────────────────────────────────────────────────────
+
+function RosterReportContent({ data }: { data: any }) {
+  const outOfSector = data.roster.filter((r: any) => r.is_out_of_sector);
+  return (
+    <>
+      <ReportHeader
+        title="דוח מצב כוח אדם"
+        date={data.date}
+        generatedAt={data.generated_at}
+      />
+
+      <h2>רשימת בעלי תפקידים</h2>
+      <table>
+        <thead>
+          <tr><th>שם</th><th>תפקיד</th><th>משימה</th><th>מצב</th><th>טלפון</th><th>טלפון מבצעי</th></tr>
+        </thead>
+        <tbody>
+          {data.roster.map((r: any) => (
+            <tr key={r.id} style={{ background: r.is_out_of_sector ? '#fff3f3' : undefined }}>
+              <td style={{ fontWeight: 600 }}>{r.name}</td>
+              <td>{r.role}</td>
+              <td>{r.task}</td>
+              <td style={{ fontWeight: r.is_out_of_sector ? 700 : undefined, color: r.is_out_of_sector ? '#dc2626' : undefined }}>
+                <StateLabel state={r.state} />
+              </td>
+              <td style={{ fontFamily: 'monospace' }}>{r.phone || '—'}</td>
+              <td style={{ fontFamily: 'monospace' }}>{r.operational_phone || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {outOfSector.length > 0 && (
+        <>
+          <h2>מחוץ לגזרה – פירוט מחליפים</h2>
+          <table>
+            <thead><tr><th>שם</th><th>תפקיד</th><th>מחליף</th><th>טלפון מחליף</th><th>זמן חזרה</th></tr></thead>
+            <tbody>
+              {outOfSector.map((r: any) => (
+                <tr key={r.id}>
+                  <td style={{ fontWeight: 600 }}>{r.name}</td>
+                  <td>{r.role}</td>
+                  <td>{r.replacement || '—'}</td>
+                  <td style={{ fontFamily: 'monospace' }}>{r.replacement_phone || '—'}</td>
+                  <td style={{ fontFamily: 'monospace' }}>{r.return_time || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      <Signature />
+    </>
+  );
+}
+
+// ── Signature block ───────────────────────────────────────────────────────
+
+function Signature() {
+  return (
+    <div className="rp-sig" style={{ marginTop: 40 }}>
+      <div className="line">חתימת קצין מוקד</div>
+      <div className="line">חתימת מפקד שו"ב</div>
+      <div className="line">חותמת</div>
+    </div>
+  );
+}
+
+// ── Print wrapper (hidden on screen, shown during print) ──────────────────
+
+function PrintWrap({ data }: { data: any }) {
+  return (
+    <div className="print-wrap">
+      <div className="report-paper" style={{ background: 'none', padding: 0 }}>
+        {data.type === 'daily' && <DailyReportContent data={data} />}
+        {data.type === 'event' && <EventReportContent data={data} />}
+        {data.type === 'roster' && <RosterReportContent data={data} />}
+      </div>
+    </div>
+  );
+}
+
+// ── Main screen ───────────────────────────────────────────────────────────
+
+export function ArchiveScreen({ data: _data }: { data: MokadData }) {
+  const [tab, setTab] = useState<'generate' | 'archive'>('generate');
+  const [reportType, setReportType] = useState<ReportType>('daily');
+  const [reportData, setReportData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [events, setEvents] = useState<any[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState('');
+  const [archiveSearch, setArchiveSearch] = useState('');
+  const [archiveStatus, setArchiveStatus] = useState('');
+
+  useEffect(() => {
+    fetch('/api/reports/events').then(r => r.json()).then(setEvents).catch(() => {});
+  }, []);
+
+  const generate = async () => {
+    setLoading(true);
+    try {
+      if (reportType === 'daily' || reportType === 'roster') {
+        const res = await fetch('/api/reports/daily');
+        setReportData({ type: reportType, ...(await res.json()) });
+      } else if (reportType === 'event') {
+        if (!selectedEventId) return;
+        const res = await fetch(`/api/reports/event/${selectedEventId}`);
+        setReportData({ type: 'event', ...(await res.json()) });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePrint = () => {
+    if (!reportData) return;
+    window.addEventListener('afterprint', () => {}, { once: true });
+    window.print();
+  };
+
+  const openEventReport = async (id: string) => {
+    setLoading(true);
+    setTab('generate');
+    try {
+      const res = await fetch(`/api/reports/event/${id}`);
+      setReportData({ type: 'event', ...(await res.json()) });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="arch-grid">
+      {/* Print area — only visible during print */}
+      {reportData && <PrintWrap data={reportData} />}
+
+      {/* ── Sidebar ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
         <div className="panel" style={{ flex: '0 0 auto' }}>
-          <div className="panel-h"><h3>סינון</h3></div>
-          <div className="panel-b" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div className="field">
-              <label>טווח תאריכים</label>
-              <div className="fieldrow">
-                <input className="input mono" defaultValue="01.04.2026" />
-                <input className="input mono" defaultValue="06.05.2026" />
-              </div>
+          <div className="panel-b" style={{ padding: '10px 14px' }}>
+            <div className="tabs-row">
+              <button className={cn('tab', tab === 'generate' && 'on')} onClick={() => setTab('generate')}>יצירת דוח</button>
+              <button className={cn('tab', tab === 'archive' && 'on')} onClick={() => setTab('archive')}>ארכיון אירועים</button>
             </div>
-            <div className="field">
-              <label>סוג אירוע</label>
-              <select className="input">
-                <option>הכל</option>
-                <option>פח"ע - ישוב</option>
-                <option>פח"ע ציר</option>
-                <option>ת"ד</option>
-                <option>אר"ן</option>
-                <option>אסון טבע</option>
-              </select>
-            </div>
-            <div className="field">
-              <label>גזרה</label>
-              <select className="input">
-                <option>כל הגזרה</option>
-                <option>גזרת חרמש</option>
-                <option>גזרת איתמר</option>
-                <option>גזרת קדומים</option>
-              </select>
-            </div>
-            <button className="btn primary"><Icon name="Search" /> חפש</button>
           </div>
         </div>
 
-        <div className="panel" style={{ flex: 1, minHeight: 0 }}>
-          <div className="panel-h"><h3>דוחות שמורים</h3></div>
-          <div className="panel-b" style={{ padding: 0, overflow: 'auto' }}>
-            {data.reports.map((rep, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--line)', alignItems: 'center' }}>
-                <div style={{ width: 34, height: 34, borderRadius: 6, background: 'var(--bg-3)', display: 'grid', placeItems: 'center', color: 'var(--ink-2)' }}>
-                  <Icon name="Doc" />
-                </div>
-                <div>
-                  <div style={{ fontSize: 13 }}>{rep.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--ink-3)', fontFamily: 'var(--mono)' }}>
-                    {rep.date} · {rep.size} · {rep.kind}
+        {tab === 'generate' && (
+          <div className="panel" style={{ flex: 1 }}>
+            <div className="panel-h"><Icon name="Doc" /><h3>בחר סוג דוח</h3></div>
+            <div className="panel-b" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {([
+                { v: 'daily', icon: 'Pulse', l: 'דוח שגרה יומי', d: 'אירועים, כוח אדם, יומן' },
+                { v: 'event', icon: 'Siren', l: 'דוח אירוע חירום', d: 'סיכום מלא לאירוע ספציפי' },
+                { v: 'roster', icon: 'Users', l: 'דוח כוח אדם', d: 'רשימת בעלי תפקידים ומחליפים' },
+              ] as const).map(opt => (
+                <label
+                  key={opt.v}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+                    background: reportType === opt.v ? 'rgba(33,150,243,.1)' : 'var(--bg-2)',
+                    border: `1px solid ${reportType === opt.v ? 'rgba(33,150,243,.4)' : 'var(--border-1)'}`,
+                    borderRadius: 8, padding: '10px 12px', transition: 'all .15s',
+                  }}
+                >
+                  <input
+                    type="radio" name="rtype" value={opt.v}
+                    checked={reportType === opt.v}
+                    onChange={() => setReportType(opt.v)}
+                    style={{ marginTop: 3 }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{opt.l}</div>
+                    <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 2 }}>{opt.d}</div>
                   </div>
+                </label>
+              ))}
+
+              {reportType === 'event' && (
+                <div className="field">
+                  <label>בחר אירוע</label>
+                  <select className="input" value={selectedEventId} onChange={e => setSelectedEventId(e.target.value)}>
+                    <option value="">— בחר אירוע —</option>
+                    {events.map(ev => (
+                      <option key={ev.id} value={ev.id}>
+                        {ev.id} · {ev.type} · {ev.location} {!ev.is_active ? '(סגור)' : '(פעיל)'}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <button className="btn sm icon"><Icon name="Download" /></button>
-              </div>
-            ))}
+              )}
+
+              <button
+                className="btn brand"
+                onClick={generate}
+                disabled={loading || (reportType === 'event' && !selectedEventId)}
+                style={{ justifyContent: 'center', padding: '10px' }}
+              >
+                <Icon name="Doc" /> {loading ? 'מכין דוח...' : 'הפק תצוגה מקדימה'}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
+
+        {tab === 'archive' && (
+          <div className="panel" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <div className="panel-h"><Icon name="Archive" /><h3>אירועי עבר</h3><span className="tag" style={{ marginRight: 4 }}>{events.length}</span></div>
+            <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border-1)', background: 'var(--bg-1)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <Icon name="Search" style={{ width: 14, color: 'var(--ink-4)', alignSelf: 'center', flexShrink: 0 }} />
+                <input
+                  className="input" style={{ fontSize: 12, padding: '4px 8px' }}
+                  placeholder="חיפוש לפי סוג / מיקום / מזהה..."
+                  value={archiveSearch} onChange={e => setArchiveSearch(e.target.value)}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <select className="input" style={{ fontSize: 12, padding: '4px 6px', flex: 1 }} value={archiveStatus} onChange={e => setArchiveStatus(e.target.value)}>
+                  <option value="">כל האירועים</option>
+                  <option value="active">פעיל</option>
+                  <option value="closed">סגור</option>
+                </select>
+                {(archiveSearch || archiveStatus) && (
+                  <button className="btn ghost-red icon-sm" onClick={() => { setArchiveSearch(''); setArchiveStatus(''); }} title="נקה">
+                    <Icon name="X" style={{ width: 11 }} />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="panel-b" style={{ padding: 0, overflow: 'auto', flex: 1 }}>
+              {(() => {
+                const q = archiveSearch.toLowerCase();
+                const filtered = events.filter(ev => {
+                  if (q && !ev.id?.toLowerCase().includes(q) && !ev.type?.toLowerCase().includes(q) && !ev.location?.toLowerCase().includes(q)) return false;
+                  if (archiveStatus === 'active' && !ev.is_active) return false;
+                  if (archiveStatus === 'closed' && ev.is_active) return false;
+                  return true;
+                });
+                if (filtered.length === 0) return (
+                  <div style={{ padding: 20, color: 'var(--ink-4)', textAlign: 'center', fontSize: 13 }}>אין תוצאות</div>
+                );
+                return filtered.map(ev => (
+                <div
+                  key={ev.id}
+                  style={{ padding: '10px 14px', borderBottom: '1px solid var(--border-1)', cursor: 'pointer', transition: 'background .12s' }}
+                  onClick={() => openEventReport(ev.id)}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.03)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '')}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="mono" style={{ fontSize: 11, color: 'var(--amber)' }}>{ev.id}</span>
+                    <span className={cn('tag sm', ev.is_active ? 'red' : 'green')}>{ev.is_active ? 'פעיל' : 'סגור'}</span>
+                  </div>
+                  <div style={{ fontWeight: 600, fontSize: 13, marginTop: 3 }}>{ev.type}</div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{ev.location} · {ev.scene_name}</div>
+                </div>
+                ));
+              })()}
+            </div>
+          </div>
+        )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateRows: '1fr auto', gap: 10, minHeight: 0 }}>
-        <div className="panel" style={{ minHeight: 0 }}>
-          <div className="panel-h">
-            <h3>היסטוריית אירועים</h3>
-            <span className="tag">{data.archive.length} אירועים</span>
-            <div className="spacer" />
-            <span className="muted" style={{ fontSize: 11 }}>קריאה בלבד</span>
-          </div>
-          <div className="panel-b" style={{ padding: 0 }}>
-            <table className="tbl">
-              <thead>
-                <tr><th>מזהה</th><th>תאריך</th><th>סוג</th><th>מיקום</th><th>משך</th><th>נפגעים</th><th></th></tr>
-              </thead>
-              <tbody>
-                {data.archive.map((ev) => (
-                  <tr
-                    key={ev.id}
-                    onClick={() => setSelected(ev)}
-                    style={{ cursor: 'pointer', background: selected.id === ev.id ? 'rgba(245,165,36,.06)' : '' }}
-                  >
-                    <td className="mono" style={{ color: 'var(--amber)' }}>{ev.id}</td>
-                    <td className="mono" style={{ color: 'var(--ink-2)' }}>{ev.date}</td>
-                    <td>{ev.type}</td>
-                    <td style={{ color: 'var(--ink-2)' }}>{ev.loc}</td>
-                    <td className="mono">{ev.dur}</td>
-                    <td className="mono">{ev.cas}</td>
-                    <td><button className="btn sm ghost"><Icon name="Doc" /> דוח</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="panel" style={{ flex: '0 0 auto' }}>
-          <div className="panel-h">
-            <h3>סקירה: {selected.id}</h3>
-            <div className="spacer" />
-            <button className="btn sm"><Icon name="Download" /> PDF</button>
-            <button className="btn sm"><Icon name="Download" /> Excel</button>
-          </div>
-          <div className="panel-b" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
-            <div className="metric">
-              <div className="lbl">סוג</div>
-              <div style={{ fontSize: 14, fontWeight: 600, marginTop: 4 }}>{selected.type}</div>
+      {/* ── Main: Report Preview ── */}
+      <div className="panel" style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {reportData ? (
+          <>
+            <div className="panel-h no-print">
+              <Icon name="Doc" />
+              <h3>
+                {reportData.type === 'daily' && 'דוח שגרה יומי'}
+                {reportData.type === 'event' && `דוח אירוע · ${reportData.id}`}
+                {reportData.type === 'roster' && 'דוח כוח אדם'}
+              </h3>
+              <div className="spacer" />
+              <button className="btn brand" onClick={handlePrint} style={{ gap: 8 }}>
+                <Icon name="Download" style={{ width: 14 }} /> הדפסה / שמירה כ-PDF
+              </button>
             </div>
-            <div className="metric">
-              <div className="lbl">תאריך</div>
-              <div className="num mono" style={{ fontSize: 18 }}>{selected.date}</div>
+            <div className="panel-b" style={{ flex: 1, overflow: 'auto', padding: 0 }}>
+              <div className="report-paper">
+                {reportData.type === 'daily' && <DailyReportContent data={reportData} />}
+                {reportData.type === 'event' && <EventReportContent data={reportData} />}
+                {reportData.type === 'roster' && <RosterReportContent data={reportData} />}
+              </div>
             </div>
-            <div className="metric">
-              <div className="lbl">משך אירוע</div>
-              <div className="num">{selected.dur}</div>
-            </div>
-            <div className="metric">
-              <div className="lbl">נפגעים</div>
-              <div className="num">{selected.cas}</div>
-            </div>
+          </>
+        ) : (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, color: 'var(--ink-4)' }}>
+            <Icon name="Doc" style={{ width: 48, opacity: .2 }} />
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink-3)' }}>בחר סוג דוח והפק תצוגה מקדימה</div>
+            <div style={{ fontSize: 13 }}>הדוח יוצג כאן לפני הדפסה / שמירה כ-PDF</div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

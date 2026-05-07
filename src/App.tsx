@@ -13,6 +13,7 @@ import { DashboardScreen } from './screens/DashboardScreen';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import { MokadData } from './types';
+import { ToastProvider, toast, confirmDialog } from './components/Toast';
 import './App.css';
 
 const data = MOKAD_DATA as unknown as MokadData;
@@ -70,7 +71,8 @@ function TopBar({ screen, onScreen, emergency, user, onLogout }: { screen: strin
   );
 }
 
-function OpenEventModal({ onConfirm, onClose }: { onConfirm: (data: any) => void, onClose: () => void }) {
+function OpenEventModal({ onConfirm, onClose }: { onConfirm: (data: any) => Promise<void> | void, onClose: () => void }) {
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     type: 'פח"ע - ישוב',
     scene_name: '',
@@ -78,6 +80,17 @@ function OpenEventModal({ onConfirm, onClose }: { onConfirm: (data: any) => void
     grid: '',
     description: ''
   });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.scene_name) return;
+    setLoading(true);
+    try {
+      await onConfirm(formData);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <motion.div 
@@ -98,7 +111,7 @@ function OpenEventModal({ onConfirm, onClose }: { onConfirm: (data: any) => void
           <Icon name="Siren" lg />
           <h2>פתיחת אירוע חירום חדש</h2>
         </div>
-        <form onSubmit={e => { e.preventDefault(); if (formData.scene_name) onConfirm(formData); }}>
+        <form onSubmit={handleSubmit}>
         <div className="b">
           <div className="fieldrow">
             <div className="field">
@@ -119,6 +132,7 @@ function OpenEventModal({ onConfirm, onClose }: { onConfirm: (data: any) => void
             <div className="field">
               <label>שם זירה (חובה)</label>
               <input 
+                autoFocus
                 className="input" 
                 placeholder='לדוגמה: זירת חפ"ק' 
                 value={formData.scene_name}
@@ -163,11 +177,11 @@ function OpenEventModal({ onConfirm, onClose }: { onConfirm: (data: any) => void
           <button
             type="submit"
             className="btn danger"
-            disabled={!formData.scene_name}
+            disabled={loading || !formData.scene_name}
           >
-            <Icon name="Siren" /> פתח אירוע
+            <Icon name="Siren" /> {loading ? 'פותח אירוע...' : 'פתח אירוע'}
           </button>
-          <button type="button" className="btn ghost" onClick={onClose}>בטל</button>
+          <button type="button" className="btn ghost" disabled={loading} onClick={onClose}>בטל</button>
         </div>
         </form>
       </motion.div>
@@ -235,7 +249,41 @@ function App() {
 
   useEffect(() => {
     document.body.classList.toggle('emergency', emergencyActive);
+    if (emergencyActive) {
+      try {
+        const audio = new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg');
+        audio.volume = 0.4;
+        audio.play().catch(e => console.warn('Audio play failed due to browser policies:', e));
+      } catch (e) {
+        // silent fallback
+      }
+    }
   }, [emergencyActive]);
+
+  // Hotkeys
+  useEffect(() => {
+    if (!token) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl + E for emergency
+      if (e.ctrlKey && e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        setShowOpenModal(true);
+      }
+      // Number keys for navigation
+      if (!e.ctrlKey && !e.metaKey && e.target instanceof HTMLElement && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        if (e.key === '1') setScreen('routine');
+        if (e.key === '2') setScreen('dashboard');
+        if (e.key === '3') setScreen('manage');
+        if (e.key === '4') setScreen('archive');
+      }
+      
+      if (e.key === 'Escape') {
+        setShowOpenModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [token]);
 
   const handleLogin = (token: string, userData: any) => {
     localStorage.setItem('token', token);
@@ -245,11 +293,13 @@ function App() {
   };
 
   const handleLogout = () => {
-    if (!window.confirm('האם אתה בטוח שברצונך להתנתק?')) return;
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
+    confirmDialog('התנתקות מהמערכת', 'האם אתה בטוח שברצונך להתנתק?', () => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setToken(null);
+      setUser(null);
+      toast('התנתקת בהצלחה', 'info');
+    });
   };
 
   if (!token) {
@@ -267,26 +317,29 @@ function App() {
       });
       if (res.ok) {
         setShowOpenModal(false);
+        toast('אירוע חירום נפתח בהצלחה', 'success');
         // Polling will catch the update
       }
     } catch (err) {
-      alert('שגיאה בפתיחת אירוע');
+      toast('שגיאה בפתיחת אירוע', 'error');
     }
   };
 
   const handleCloseEmergency = async () => {
-    if (!window.confirm('האם אתה בטוח שברצונך לסגור את האירוע?')) return;
-    try {
-      await fetch('/api/emergency/close', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: activeEvent.id })
-      });
-      setEmergencyActive(false);
-      setScreen('routine');
-    } catch (err) {
-      alert('שגיאה בסגירת אירוע');
-    }
+    confirmDialog('סגירת אירוע', 'האם אתה בטוח שברצונך לסגור את האירוע ולהחזיר את המערכת לשגרה?', async () => {
+      try {
+        await fetch('/api/emergency/close', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: activeEvent.id })
+        });
+        setEmergencyActive(false);
+        setScreen('routine');
+        toast('אירוע נסגר בהצלחה', 'info');
+      } catch (err) {
+        toast('שגיאה בסגירת אירוע', 'error');
+      }
+    });
   };
 
   // Normalize DB snake_case → camelCase for active event
@@ -380,6 +433,7 @@ function App() {
           <OpenEventModal onConfirm={confirmOpenEmergency} onClose={() => setShowOpenModal(false)} />
         )}
       </AnimatePresence>
+      <ToastProvider />
     </div>
   );
 }

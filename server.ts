@@ -109,6 +109,14 @@ db.exec(`
   );
 `);
 
+// Migrate: add new columns to existing DBs
+try { db.exec('ALTER TABLE active_event ADD COLUMN map_coords TEXT DEFAULT ""'); } catch {}
+
+// Migrate: add new roster columns to existing DBs
+try { db.exec('ALTER TABLE roster ADD COLUMN phone TEXT DEFAULT ""'); } catch {}
+try { db.exec('ALTER TABLE roster ADD COLUMN operational_phone TEXT DEFAULT ""'); } catch {}
+try { db.exec('ALTER TABLE roster ADD COLUMN replacement_phone TEXT DEFAULT ""'); } catch {}
+
 // Seed default admin if empty
 const adminCount = db.prepare('SELECT count(*) as count FROM users').get() as { count: number };
 if (adminCount.count === 0) {
@@ -184,21 +192,49 @@ async function startServer() {
   });
 
   app.post('/api/roster/update', (req, res) => {
-    const { id, is_out_of_sector, replacement, state, reason, return_time } = req.body;
-    db.prepare('UPDATE roster SET is_out_of_sector = ?, replacement = ?, state = ?, reason = ?, return_time = ? WHERE id = ?').run(
+    const { id, is_out_of_sector, replacement, replacement_phone, state, return_time, phone, operational_phone } = req.body;
+    db.prepare(`
+      UPDATE roster SET
+        is_out_of_sector = ?, replacement = ?, replacement_phone = ?,
+        state = ?, return_time = ?, phone = ?, operational_phone = ?
+      WHERE id = ?
+    `).run(
       is_out_of_sector ? 1 : 0,
       replacement || '',
+      replacement_phone || '',
       state || (is_out_of_sector ? 'out' : 'field'),
-      reason || '',
       return_time || '',
+      phone || '',
+      operational_phone || '',
       id
     );
 
-    // Save replacement name if it's new
     if (replacement) {
       db.prepare('INSERT OR IGNORE INTO replacements (name) VALUES (?)').run(replacement);
     }
 
+    res.json({ success: true });
+  });
+
+  app.post('/api/roster/add', (req, res) => {
+    const { name, role, task, phone, operational_phone, state } = req.body;
+    if (!name) return res.status(400).json({ error: 'Missing name' });
+    const result = db.prepare(`
+      INSERT INTO roster (name, role, task, out_time, state, is_out_of_sector, replacement, phone, operational_phone)
+      VALUES (?, ?, ?, ?, ?, 0, '', ?, ?)
+    `).run(name, role || '', task || '', new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), state || 'field', phone || '', operational_phone || '');
+    res.json({ success: true, id: result.lastInsertRowid });
+  });
+
+  app.post('/api/roster/:id/edit', (req, res) => {
+    const { name, role, task, phone, operational_phone, state } = req.body;
+    db.prepare('UPDATE roster SET name = ?, role = ?, task = ?, phone = ?, operational_phone = ?, state = ? WHERE id = ?')
+      .run(name, role || '', task || '', phone || '', operational_phone || '', state || 'field', req.params.id);
+    res.json({ success: true });
+  });
+
+  app.delete('/api/roster/:id', (req, res) => {
+    db.prepare('DELETE FROM roster WHERE id = ?').run(req.params.id);
     res.json({ success: true });
   });
 
@@ -228,6 +264,13 @@ async function startServer() {
 
   app.post('/api/incidents/:id/close', (req, res) => {
     db.prepare('UPDATE incidents SET status = ? WHERE id = ?').run('הסתיים', req.params.id);
+    res.json({ success: true });
+  });
+
+  app.post('/api/incidents/:id/update', (req, res) => {
+    const { type, location, status, severity } = req.body;
+    db.prepare('UPDATE incidents SET type = ?, location = ?, status = ?, severity = ? WHERE id = ?')
+      .run(type, location, status, severity, req.params.id);
     res.json({ success: true });
   });
 
@@ -285,14 +328,15 @@ async function startServer() {
   });
 
   app.post('/api/emergency/update', (req, res) => {
-    const { id, dead, critical, serious, light, untreated, missing, trapped, description } = req.body;
+    const { id, dead, critical, serious, light, untreated, missing, trapped, description, map_coords } = req.body;
     const snapshot_at = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 
     db.prepare(`
-      UPDATE active_event 
-      SET dead = ?, critical = ?, serious = ?, light = ?, untreated = ?, missing = ?, trapped = ?, description = ?, snapshot_at = ?
+      UPDATE active_event
+      SET dead = ?, critical = ?, serious = ?, light = ?, untreated = ?, missing = ?, trapped = ?,
+          description = ?, snapshot_at = ?, map_coords = ?
       WHERE id = ?
-    `).run(dead, critical, serious, light, untreated, missing, trapped, description, snapshot_at, id);
+    `).run(dead, critical, serious, light, untreated, missing, trapped, description, snapshot_at, map_coords ?? '', id);
 
     res.json({ success: true });
   });
@@ -315,6 +359,33 @@ async function startServer() {
   app.delete('/api/evac/:id', (req, res) => {
     db.prepare('DELETE FROM event_evac WHERE id = ?').run(req.params.id);
     res.json({ success: true });
+  });
+
+  // Reports
+  app.get('/api/reports/daily', (req, res) => {
+    const roster = db.prepare('SELECT * FROM roster ORDER BY name').all();
+    const incidents = db.prepare('SELECT * FROM incidents ORDER BY created_at DESC').all();
+    const feed = db.prepare(`SELECT * FROM feed WHERE system = 0 AND (event_id IS NULL OR event_id = '') ORDER BY id DESC LIMIT 50`).all();
+    const now = new Date();
+    res.json({
+      generated_at: now.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      date: now.toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+      roster, incidents, feed,
+    });
+  });
+
+  app.get('/api/reports/events', (req, res) => {
+    const events = db.prepare('SELECT * FROM active_event ORDER BY started_at DESC').all();
+    res.json(events);
+  });
+
+  app.get('/api/reports/event/:id', (req, res) => {
+    const event = db.prepare('SELECT * FROM active_event WHERE id = ?').get(req.params.id) as any;
+    if (!event) return res.status(404).json({ error: 'Not found' });
+    const forces = db.prepare('SELECT * FROM event_forces WHERE event_id = ?').all(event.id);
+    const evac = db.prepare('SELECT * FROM event_evac WHERE event_id = ?').all(event.id);
+    const feed = db.prepare('SELECT * FROM feed WHERE event_id = ? ORDER BY id ASC').all(event.id);
+    res.json({ ...event, forces, evac, feed });
   });
 
   // Admin User Management

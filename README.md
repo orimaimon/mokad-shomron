@@ -1,16 +1,73 @@
-# React + Vite
+# 🛡️ מוקד שומרון – מערכת שו"ב (שליטה ובקרה)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+מערכת ניהול ובקרה מתקדמת למוקד אירועים, המשלבת ניהול שגרה וחירום, מעקב אחר כוחות, ניהול משתמשים וארכיון אירועים. המערכת נבנתה כפרויקט Full-stack מודרני בדגש על ביצועים, אבטחה וחווית משתמש (UI/UX).
 
-Currently, two official plugins are available:
+## ✨ תכונות עיקריות
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+*   **Dashboard (מצב שו"ב):** צפייה בזמן אמת באירועים, מצלמות אבטחה (סימולציה) וסטטוס כוחות.
+*   **מצב חירום/שגרה:** ממשק מותאם לסוג הפעילות במוקד עם תעדוף אירועים.
+*   **מעקב "מחוץ לגזרה":** מערכת לניהול ורישום כוחות שיצאו מהגזרה כולל הזנת מחליפים.
+*   **ניהול משתמשים (Admin Portal):** מערכת הרשאות מלאה להוספה, עריכה וניהול מוקדנים.
+*   **ארכיון חכם:** חיפוש ותיעוד היסטורי של כלל האירועים והדיווחים במערכת.
+*   **אבטחה:** אימות משתמשים באמצעות JWT והצפנת סיסמאות.
 
-## React Compiler
+## 🚀 טכנולוגיות
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Frontend
+*   **React 19:** ספריית ה-UI המובילה.
+*   **Vite:** כלי לבנייה והרצה מהירה במיוחד.
+*   **Tailwind CSS:** לעיצוב רספונסיבי ומודרני.
+*   **Framer Motion:** לאנימציות ומעברים חלקים.
+*   **Lucide React:** סט אייקונים וקטוריים.
 
-## Expanding the ESLint configuration
+### Backend
+*   **Node.js & Express:** שרת Backend מהיר ויציב.
+*   **SQLite (better-sqlite3):** בסיס נתונים מקומי ומהיר לניהול מידע פרסיסטנטי.
+*   **JWT:** לאבטחת נתיבים וניהול Sessions.
+*   **tsx:** להרצת קבצי TypeScript ישירות ב-Backend.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 📦 התקנה והרצה
+
+### 1. דרישות קדם
+*   Node.js גרסה 18 ומעלה.
+
+### 2. התקנה
+```bash
+# שכפול הפרויקט
+git clone https://github.com/orimaimon/mokad-shomron.git
+cd mokad-shomron
+
+# התקנת חבילות
+npm install
+```
+
+### 3. הגדרת משתני סביבה
+צרו קובץ `.env` בתיקייה הראשית:
+```env
+PORT=3001
+JWT_SECRET=your_secret_key_here
+```
+
+### 4. הרצה במצב פיתוח
+יש להריץ את השרת ואת הממשק בשני טרמינלים נפרדים:
+
+**הרצת ה-Backend:**
+```bash
+npm run server
+```
+
+**הרצת ה-Frontend:**
+```bash
+npm run client
+```
+
+## 🏗️ מבנה הפרויקט
+
+*   `src/screens/` – מסכי האפליקציה (Login, Dashboard, Admin וכו').
+*   `src/components/` – רכיבי UI משותפים.
+*   `src/data/` – מודלים ונתוני דוגמה.
+*   `server.ts` – קוד השרת וה-API.
+*   `database.sqlite` – (נוצר בהרצה) בסיס הנתונים של המערכת.
+
+## 📝 רישיון
+כל הזכויות שמורות למוקד שומרון.
