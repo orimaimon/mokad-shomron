@@ -167,6 +167,14 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
   const [editingPerson, setEditingPerson] = useState<RosterMember | null>(null);
   const [showNewIncident, setShowNewIncident] = useState(false);
   const [reportText, setReportText] = useState('');
+  const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
+
+  const handleDeleteFeedItem = async (id: number) => {
+    setDeletedIds(prev => new Set(prev).add(id));
+    await fetch(`/api/feed/${id}`, { method: 'DELETE' }).catch(() => {
+      setDeletedIds(prev => { const s = new Set(prev); s.delete(id); return s; });
+    });
+  };
 
   const handleSendReport = async () => {
     if (!reportText.trim()) return;
@@ -303,13 +311,23 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
         </div>
         <div className="panel-b" style={{ padding: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <div className="feed" style={{ flex: 1, overflow: 'auto' }}>
-            {r.feed.map((it, i) => (
-              <div className="item" key={i}>
+            {r.feed.filter((it: any) => !deletedIds.has(it.id)).map((it: any, i: number) => (
+              <div className="item" key={it.id ?? i} style={{ position: 'relative' }}>
                 <div className="t mono">{it.t}</div>
                 <div className="body">
                   <FormattedText text={it.text} />
                   <span className="src">— {it.src}</span>
                 </div>
+                <button
+                  className="btn ghost-red icon-sm"
+                  style={{ position: 'absolute', top: 8, left: 8, opacity: 0, transition: 'opacity .15s' }}
+                  onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                  onMouseLeave={e => (e.currentTarget.style.opacity = '0')}
+                  onClick={() => handleDeleteFeedItem(it.id)}
+                  title="מחק רשומה"
+                >
+                  <Icon name="Trash" style={{ width: 12 }} />
+                </button>
               </div>
             ))}
           </div>

@@ -236,6 +236,11 @@ async function startServer() {
     res.json(items);
   });
 
+  app.delete('/api/feed/:id', (req, res) => {
+    db.prepare('DELETE FROM feed WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  });
+
   app.post('/api/feed', (req, res) => {
     const { src, text, urgent, system, event_id } = req.body;
     const time = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
