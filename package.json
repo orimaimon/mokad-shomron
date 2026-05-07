@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
+    "client": "vite",
+    "server": "tsx server.ts",
+    "dev": "npm run server",
     "start": "node server.js",
     "build": "vite build",
     "lint": "eslint .",
@@ -33,6 +35,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
+    "tsx": "^4.21.0",
     "vite": "^8.0.10"
   }
 }
