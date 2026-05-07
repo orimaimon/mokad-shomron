@@ -13,7 +13,6 @@ interface RoutineScreenProps {
 function RosterUpdateModal({ person, onClose, onSave }: { person: RosterMember, onClose: () => void, onSave: (p: RosterMember) => void }) {
   const [isOut, setIsOut] = useState(!!person.isOutOfSector);
   const [replacement, setReplacement] = useState(person.replacement || '');
-  const [reason, setReason] = useState(person.reason || '');
   const [returnTime, setReturnTime] = useState(person.returnTime || '');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -28,23 +27,21 @@ function RosterUpdateModal({ person, onClose, onSave }: { person: RosterMember, 
       const res = await fetch('/api/roster/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          id: person.id, 
-          is_out_of_sector: isOut, 
+        body: JSON.stringify({
+          id: person.id,
+          is_out_of_sector: isOut,
           replacement,
-          reason,
           return_time: returnTime,
           state: isOut ? 'out' : person.state === 'out' ? 'field' : person.state
         }),
       });
       if (res.ok) {
-        onSave({ 
-          ...person, 
-          isOutOfSector: isOut, 
-          replacement, 
-          reason, 
+        onSave({
+          ...person,
+          isOutOfSector: isOut,
+          replacement,
           returnTime,
-          state: isOut ? 'out' : (person.state === 'out' ? 'field' : person.state) 
+          state: isOut ? 'out' : (person.state === 'out' ? 'field' : person.state)
         });
       }
     } finally {
@@ -67,17 +64,6 @@ function RosterUpdateModal({ person, onClose, onSave }: { person: RosterMember, 
 
           {isOut && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div className="input-group">
-                <label style={{ display: 'block', marginBottom: 6, fontSize: 13, color: 'var(--ink-3)' }}>סיבת יציאה</label>
-                <input 
-                  type="text" 
-                  value={reason}
-                  onChange={e => setReason(e.target.value)}
-                  placeholder="לדוגמה: חופשה, השתלמות..."
-                  style={{ width: '100%', padding: '10px', borderRadius: 8, background: 'var(--bg-2)', border: '1px solid var(--border-1)', color: 'white' }}
-                />
-              </div>
-              
               <div className="input-group">
                 <label style={{ display: 'block', marginBottom: 6, fontSize: 13, color: 'var(--ink-3)' }}>שם מחליף</label>
                 <input 
