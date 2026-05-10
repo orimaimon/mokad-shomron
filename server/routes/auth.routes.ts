@@ -16,7 +16,7 @@ router.post('/login', validateBody(LoginSchema), (req, res) => {
     return res.status(401).json({ error: 'אימייל או סיסמה שגויים' });
   }
 
-  const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '24h' });
+  const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: { name: user.name, role: user.role, email: user.email } });
 });
 

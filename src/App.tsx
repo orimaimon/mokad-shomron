@@ -224,12 +224,23 @@ function App() {
 
     const fetchData = async () => {
       try {
+        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
         const [eventRes, incRes, feedRes, rosterRes] = await Promise.all([
           fetch('/api/emergency/active'),
           fetch('/api/incidents'),
           fetch('/api/feed'),
           fetch('/api/roster')
         ]);
+
+        // Detect expired session from any auth-protected call
+        if ([eventRes, incRes, feedRes, rosterRes].some(r => r.status === 401)) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setToken(null);
+          setUser(null);
+          toast('פג תוקף החיבור, התחבר מחדש', 'error');
+          return;
+        }
 
         const eventData = await eventRes.json();
         const incData = await incRes.json();

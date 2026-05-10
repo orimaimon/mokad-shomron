@@ -26,6 +26,12 @@ function UsersPanel() {
   const fetchUsers = async () => {
     const token = localStorage.getItem('token');
     const res = await fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } });
+    if (res.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.reload();
+      return;
+    }
     if (res.ok) setUsers(await res.json());
   };
 
