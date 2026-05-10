@@ -2,6 +2,10 @@
 
 ## [Unreleased] — 2026-05-10
 
+### Fix — Wording
+
+- Changed "בתורנות" → "במשמרת" in the active shift banner dispatcher label
+
 ### Feature — Dispatcher Roster in Shift Log (יומן משמרת)
 
 - Added `shift_operators` table — stores dispatcher names permanently for future autocomplete (INSERT OR IGNORE, no duplicates)

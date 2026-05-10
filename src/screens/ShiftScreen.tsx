@@ -377,7 +377,7 @@ export function ShiftScreen({ data, user }: ShiftScreenProps) {
               {/* Dispatchers on duty */}
               {activeShift.dispatchers.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 7 }}>
-                  <span style={{ fontSize: 11, color: 'var(--ink-4)', alignSelf: 'center' }}>בתורנות:</span>
+                  <span style={{ fontSize: 11, color: 'var(--ink-4)', alignSelf: 'center' }}>במשמרת:</span>
                   {activeShift.dispatchers.map(name => (
                     <span key={name} className="tag sm" style={{ fontSize: 11 }}>{name}</span>
                   ))}
