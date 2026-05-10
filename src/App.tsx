@@ -369,6 +369,7 @@ function App() {
       metrics: {
         ...data.routine.metrics,
         open: incidents.filter(i => i.status !== 'הסתיים').length,
+        today: incidents.filter(i => new Date(i.created_at).toDateString() === new Date().toDateString()).length,
         total: roster.length
       }
     }

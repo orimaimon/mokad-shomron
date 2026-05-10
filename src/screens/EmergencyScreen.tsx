@@ -94,7 +94,7 @@ function UpdateSituationModal({ event, onClose, onSave }: {
   };
 
   return (
-    <div className="scrim" onClick={onClose} style={{ zIndex: 1000 }}>
+    <div className="scrim" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
         <div className="h"><Icon name="Edit" /><h3>עדכון תמונת מצב — {event.id}</h3></div>
         <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
@@ -166,7 +166,7 @@ function AddEvacModal({ eventId, onClose, onSave }: {
   };
 
   return (
-    <div className="scrim" onClick={onClose} style={{ zIndex: 1000 }}>
+    <div className="scrim" onClick={onClose}>
       <div className="modal sm" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
         <div className="h"><Icon name="Truck" /><h3>הוספת פינוי</h3></div>
         <form onSubmit={e => { e.preventDefault(); handleSave(); }}>

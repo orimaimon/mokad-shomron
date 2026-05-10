@@ -4,6 +4,7 @@ import { useNow, fmtDate } from '../hooks/useClock';
 import { MokadData, RosterMember } from '../types';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { toast } from '../components/Toast';
 
 interface RoutineScreenProps {
   data: MokadData;
@@ -12,8 +13,12 @@ interface RoutineScreenProps {
 
 const inputStyle = { width: '100%', padding: '10px', borderRadius: 8, background: 'var(--bg-2)', border: '1px solid var(--border-1)', color: 'white' };
 
-function RosterUpdateModal({ person, onClose, onSave }: { person: RosterMember, onClose: () => void, onSave: (p: RosterMember) => void }) {
+function RosterUpdateModal({ person, onClose, onSave, onDelete }: { person: RosterMember, onClose: () => void, onSave: (p: RosterMember) => void, onDelete?: () => void }) {
   const [isOut, setIsOut] = useState(!!person.isOutOfSector);
+  const [personState, setPersonState] = useState(person.state || 'field');
+  const [name, setName] = useState(person.name || '');
+  const [role, setRole] = useState(person.role || '');
+  const [task, setTask] = useState((person as any).task || '');
   const [replacement, setReplacement] = useState((person as any).replacement || '');
   const [replacementPhone, setReplacementPhone] = useState((person as any).replacement_phone || '');
   const [returnTime, setReturnTime] = useState((person as any).returnTime || '');
@@ -27,8 +32,17 @@ function RosterUpdateModal({ person, onClose, onSave }: { person: RosterMember, 
   }, []);
 
   const handleSave = async () => {
+    if (!name.trim()) {
+      toast('שם מלא הוא שדה חובה', 'error');
+      return;
+    }
     setLoading(true);
     try {
+      await fetch(`/api/roster/${person.id}/edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, role, task, phone, operational_phone: operationalPhone, state: isOut ? 'out' : personState })
+      });
       const res = await fetch('/api/roster/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -40,25 +54,46 @@ function RosterUpdateModal({ person, onClose, onSave }: { person: RosterMember, 
           return_time: returnTime,
           phone,
           operational_phone: operationalPhone,
-          state: isOut ? 'out' : person.state === 'out' ? 'field' : person.state
+          state: isOut ? 'out' : personState
         }),
       });
-      if (res.ok) onSave({ ...person, isOutOfSector: isOut, replacement, returnTime, state: isOut ? 'out' : (person.state === 'out' ? 'field' : person.state) } as any);
+      if (res.ok) {
+        onSave({ ...person, name, role, task, isOutOfSector: isOut, replacement, returnTime, phone, operational_phone: operationalPhone, state: isOut ? 'out' : personState } as any);
+        toast('בעל התפקיד עודכן בהצלחה', 'success');
+      } else {
+        toast('שגיאה בעדכון בעל התפקיד', 'error');
+      }
+    } catch (e) {
+      toast('שגיאת תקשורת', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="scrim" onClick={onClose} style={{ zIndex: 1000 }}>
+    <div className="scrim" onClick={onClose}>
       <div className="modal sm" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
         <div className="h">
           <Icon name="User" />
-          <h3>{person.name}</h3>
-          <span className="tag" style={{ marginRight: 'auto' }}>{person.role}</span>
+          <h3>עריכת בעל תפקיד</h3>
         </div>
         <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
         <div className="b" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="input-group" style={{ gridColumn: 'span 2' }}>
+              <label style={{ display: 'block', marginBottom: 5, fontSize: 12, color: 'var(--ink-3)' }}>שם מלא</label>
+              <input type="text" value={name} onChange={e => setName(e.target.value)} style={inputStyle} />
+            </div>
+            <div className="input-group">
+              <label style={{ display: 'block', marginBottom: 5, fontSize: 12, color: 'var(--ink-3)' }}>תפקיד</label>
+              <input type="text" value={role} onChange={e => setRole(e.target.value)} style={inputStyle} />
+            </div>
+            <div className="input-group">
+              <label style={{ display: 'block', marginBottom: 5, fontSize: 12, color: 'var(--ink-3)' }}>משימה נוכחית</label>
+              <input type="text" value={task} onChange={e => setTask(e.target.value)} style={inputStyle} />
+            </div>
+          </div>
 
           {/* פרטי קשר */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -72,8 +107,17 @@ function RosterUpdateModal({ person, onClose, onSave }: { person: RosterMember, 
             </div>
           </div>
 
-          <div style={{ borderTop: '1px solid var(--border-1)', paddingTop: 12 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', background: 'var(--bg-2)', padding: '12px', borderRadius: 8 }}>
+          <div style={{ borderTop: '1px solid var(--border-1)', paddingTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="input-group">
+              <label style={{ display: 'block', marginBottom: 5, fontSize: 12, color: 'var(--ink-3)' }}>סטטוס זמינות</label>
+              <select style={inputStyle} value={personState} onChange={e => setPersonState(e.target.value)} disabled={isOut}>
+                <option value="field">בשטח</option>
+                <option value="brief">תדריך</option>
+                <option value="return">בחזרה</option>
+                <option value="unavailable">לא זמין</option>
+              </select>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', background: 'var(--bg-2)', padding: '12px', borderRadius: 8, height: 'max-content', alignSelf: 'end' }}>
               <input type="checkbox" checked={isOut} onChange={e => setIsOut(e.target.checked)} />
               <span style={{ fontWeight: 600 }}>מחוץ לגזרה</span>
             </label>
@@ -109,6 +153,11 @@ function RosterUpdateModal({ person, onClose, onSave }: { person: RosterMember, 
         <div className="f">
           <button type="submit" className="btn brand" disabled={loading}>{loading ? 'שומר...' : 'שמור'}</button>
           <button type="button" className="btn ghost" onClick={onClose}>ביטול</button>
+          {onDelete && (
+            <button type="button" className="btn ghost-red" style={{ marginRight: 'auto' }} onClick={onDelete}>
+              <Icon name="Trash" />
+            </button>
+          )}
         </div>
         </form>
       </div>
@@ -140,7 +189,7 @@ function EditIncidentModal({ incident, onClose, onSave }: { incident: any, onClo
   };
 
   return (
-    <div className="scrim" onClick={onClose} style={{ zIndex: 1000 }}>
+    <div className="scrim" onClick={onClose}>
       <div className="modal sm" onClick={e => e.stopPropagation()}>
         <div className="h"><Icon name="Edit" /><h3>עדכון אירוע</h3></div>
         <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
@@ -205,7 +254,7 @@ function NewIncidentModal({ onClose, onSave }: { onClose: () => void, onSave: ()
   };
 
   return (
-    <div className="scrim" onClick={onClose} style={{ zIndex: 1000 }}>
+    <div className="scrim" onClick={onClose}>
       <div className="modal sm" onClick={e => e.stopPropagation()}>
         <div className="h"><h3>פתיחת אירוע שגרה חדש</h3></div>
         <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
@@ -237,12 +286,78 @@ function NewIncidentModal({ onClose, onSave }: { onClose: () => void, onSave: ()
   );
 }
 
+function NewPersonModal({ onClose, onSave }: { onClose: () => void, onSave: () => void }) {
+  const [form, setForm] = useState({ name: '', role: 'סייר', phone: '', state: 'field' });
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    if (!form.name.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/roster/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form)
+      });
+      if (res.ok) {
+        toast('בעל התפקיד נוסף בהצלחה', 'success');
+        onSave();
+      } else {
+        toast('שגיאה בהוספת בעל תפקיד', 'error');
+      }
+    } catch (e) {
+      toast('שגיאת תקשורת', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="scrim" onClick={onClose}>
+      <div className="modal sm" onClick={e => e.stopPropagation()}>
+        <div className="h"><h3>הוספת בעל תפקיד</h3></div>
+        <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
+          <div className="b" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="field">
+              <label>שם מלא</label>
+              <input autoFocus className="input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+            </div>
+            <div className="fieldrow">
+              <div className="field">
+                <label>תפקיד</label>
+                <input className="input" placeholder="סייר / רבשצ..." value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} />
+              </div>
+              <div className="field">
+                <label>סטטוס התחלתי</label>
+                <select className="input" value={form.state} onChange={e => setForm({ ...form, state: e.target.value })}>
+                  <option value="field">בשטח</option>
+                  <option value="brief">תדריך</option>
+                  <option value="unavailable">לא זמין</option>
+                </select>
+              </div>
+            </div>
+            <div className="field">
+              <label>טלפון</label>
+              <input type="tel" className="input" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+            </div>
+          </div>
+          <div className="f">
+            <button type="submit" className="btn brand" disabled={loading || !form.name.trim()}>{loading ? 'מוסיף...' : 'הוסף'}</button>
+            <button type="button" className="btn ghost" onClick={onClose}>ביטול</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
   const r = data.routine;
   const now = useNow();
   const [tab, setTab] = useState<'in' | 'out'>('out');
   const [roster, setRoster] = useState<RosterMember[]>([]);
   const [editingPerson, setEditingPerson] = useState<RosterMember | null>(null);
+  const [showNewPerson, setShowNewPerson] = useState(false);
   const [showNewIncident, setShowNewIncident] = useState(false);
   const [reportText, setReportText] = useState('');
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
@@ -300,6 +415,13 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
   useEffect(() => {
     fetchRoster();
   }, []);
+
+  const handleDeletePerson = async (id: number) => {
+    if (!window.confirm('האם אתה בטוח שברצונך למחוק בעל תפקיד זה?')) return;
+    await fetch(`/api/roster/${id}`, { method: 'DELETE' }).catch(() => {});
+    fetchRoster();
+    setEditingPerson(null);
+  };
 
   // ── derived filtered/sorted lists ──
   const filteredIncidents = useMemo(() => {
@@ -365,7 +487,11 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
             setEditingPerson(null);
             fetchRoster();
           }}
+          onDelete={() => handleDeletePerson(editingPerson.id)}
         />
+      )}
+      {showNewPerson && (
+        <NewPersonModal onClose={() => setShowNewPerson(false)} onSave={() => { setShowNewPerson(false); fetchRoster(); }} />
       )}
       {showNewIncident && (
         <NewIncidentModal onClose={() => setShowNewIncident(false)} onSave={() => setShowNewIncident(false)} />
@@ -393,8 +519,19 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
           </div>
           <div className="panel-b" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div className="metric">
-              <div className="lbl">אירועים פתוחים</div>
+              <div className="lbl">כוננות גזרה</div>
+              <div className="num" style={{ fontSize: 24, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="tag green" style={{ fontSize: 13 }}>שגרה</span>
+              </div>
+            </div>
+            <div className="metric">
+              <div className="lbl">אירועים פעילים</div>
               <div className="num">{r.metrics.open}</div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8, fontSize: 11, color: 'var(--ink-2)' }}>
+                <span style={{ color: 'var(--red)' }}>🔴 {r.incidents.filter(i => (i.sev || i.severity) === 'red' && i.status !== 'הסתיים').length}</span>
+                <span style={{ color: 'var(--amber)' }}>🟡 {r.incidents.filter(i => (i.sev || i.severity) === 'amber' && i.status !== 'הסתיים').length}</span>
+                <span style={{ color: 'var(--green)' }}>🟢 {r.incidents.filter(i => (i.sev || i.severity) === 'green' && i.status !== 'הסתיים').length}</span>
+              </div>
             </div>
             <div className="metric">
               <div className="lbl">אירועים היום</div>
@@ -404,10 +541,6 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
                   <i key={i} style={{ height: h * 2 }} />
                 ))}
               </div>
-            </div>
-            <div className="metric">
-              <div className="lbl">זמן תגובה ממוצע</div>
-              <div className="num">{r.metrics.avgResponse}</div>
             </div>
             <div className="metric">
               <div className="lbl">בעלי תפקידים בשטח</div>
@@ -575,6 +708,9 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
         >
           <div className="panel-h" style={{ borderBottom: 'none', padding: '10px 15px', flexWrap: 'wrap', gap: 8 }}>
             <h3>בעלי תפקידים</h3>
+            <button className="btn ghost icon-sm" title="הוסף בעל תפקיד" onClick={() => setShowNewPerson(true)} style={{ padding: '2px 6px', height: 24 }}>
+              <Icon name="Plus" style={{ width: 14 }} />
+            </button>
             <div className="spacer" />
             <div className="tabs-row sm">
               <button className={cn("tab", tab === 'in' && "on")} onClick={() => setTab('in')}>

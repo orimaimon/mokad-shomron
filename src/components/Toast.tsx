@@ -37,7 +37,7 @@ export function ToastProvider() {
 
   return (
     <>
-      <div style={{ position: 'fixed', bottom: 20, left: 20, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ position: 'fixed', bottom: 20, left: 20, zIndex: 'var(--z-toast)', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <AnimatePresence>
           {toasts.map(t => (
             <motion.div
@@ -60,7 +60,7 @@ export function ToastProvider() {
 
       <AnimatePresence>
         {confirmState && (
-          <div className="scrim" style={{ zIndex: 10000 }}>
+          <div className="scrim" style={{ zIndex: 'var(--z-confirm)' }}>
             <motion.div initial={{ scale: 0.95, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 10 }} className="modal sm" style={{ maxWidth: 400 }}>
               <div className="h"><Icon name="AlertTriangle" style={{ color: 'var(--amber)' }} /><h3>{confirmState.title}</h3></div>
               <div className="b" style={{ padding: '20px 20px 30px', fontSize: 14 }}>{confirmState.msg}</div>

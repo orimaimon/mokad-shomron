@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Icon } from '../components/Icons';
 import { cn } from '../lib/utils';
+import { toast } from '../components/Toast';
 
 interface User {
   email: string;
@@ -16,6 +17,10 @@ interface RosterMember {
   phone: string;
   operational_phone: string;
   state: string;
+  is_out_of_sector?: number;
+  replacement?: string;
+  replacement_phone?: string;
+  return_time?: string;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -51,13 +56,23 @@ function UsersPanel() {
   };
 
   const handleSave = async () => {
-    const token = localStorage.getItem('token');
-    const res = await fetch('/api/admin/users', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    if (res.ok) { setModal({ open: false }); fetchUsers(); }
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) { 
+        toast('משתמש נשמר בהצלחה', 'success');
+        setModal({ open: false }); 
+        fetchUsers(); 
+      } else {
+        toast('שגיאה בשמירת משתמש', 'error');
+      }
+    } catch(err) {
+      toast('שגיאת תקשורת', 'error');
+    }
   };
 
   return (
@@ -133,10 +148,10 @@ const STATES = [
   { v: 'field', l: 'בשטח' },
   { v: 'brief', l: 'תדריך' },
   { v: 'return', l: 'בחזרה' },
-  { v: 'out', l: 'מחוץ לגזרה' },
+  { v: 'unavailable', l: 'לא זמין' },
 ];
 
-const emptyMember = { name: '', role: '', task: '', phone: '', operational_phone: '', state: 'field' };
+const emptyMember = { name: '', role: '', task: '', phone: '', operational_phone: '', state: 'field', isOutOfSector: false, replacement: '', replacementPhone: '', returnTime: '' };
 
 function RosterPanel() {
   const [members, setMembers] = useState<RosterMember[]>([]);
@@ -154,7 +169,18 @@ function RosterPanel() {
 
   const openAdd = () => { setForm({ ...emptyMember }); setModal({ open: true, member: null }); };
   const openEdit = (m: RosterMember) => {
-    setForm({ name: m.name, role: m.role, task: m.task, phone: m.phone || '', operational_phone: m.operational_phone || '', state: m.state });
+    setForm({ 
+      name: m.name || '', 
+      role: m.role || '', 
+      task: m.task || '', 
+      phone: m.phone || '', 
+      operational_phone: m.operational_phone || '', 
+      state: m.state === 'out' ? 'field' : (m.state || 'field'),
+      isOutOfSector: !!m.is_out_of_sector,
+      replacement: m.replacement || '',
+      replacementPhone: m.replacement_phone || '',
+      returnTime: m.return_time || ''
+    });
     setModal({ open: true, member: m });
   };
 
@@ -165,16 +191,65 @@ function RosterPanel() {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) return;
-    const token = localStorage.getItem('token');
-    const isEdit = !!modal.member;
-    const url = isEdit ? `/api/roster/${modal.member!.id}/edit` : '/api/roster/add';
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(form),
-    });
-    if (res.ok) { setModal({ open: false }); fetchMembers(); }
+    if (!form.name?.trim()) {
+      toast('שם מלא הוא שדה חובה', 'error');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const isEdit = !!modal.member;
+      const url = isEdit ? `/api/roster/${modal.member!.id}/edit` : '/api/roster/add';
+      const stateToSave = form.isOutOfSector ? 'out' : form.state;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...form, state: stateToSave }),
+      });
+      if (res.ok) {
+        if (isEdit) {
+          await fetch('/api/roster/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              id: modal.member!.id,
+              is_out_of_sector: form.isOutOfSector,
+              replacement: form.replacement,
+              replacement_phone: form.replacementPhone,
+              return_time: form.returnTime,
+              state: stateToSave,
+              phone: form.phone,
+              operational_phone: form.operational_phone
+            }),
+          });
+        } else if (form.isOutOfSector) {
+          const data = await res.json();
+          if (data.id) {
+            await fetch('/api/roster/update', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({
+                id: data.id,
+                is_out_of_sector: form.isOutOfSector,
+                replacement: form.replacement,
+                replacement_phone: form.replacementPhone,
+                return_time: form.returnTime,
+                state: stateToSave,
+                phone: form.phone,
+                operational_phone: form.operational_phone
+              }),
+            });
+          }
+        }
+        
+        toast(isEdit ? 'בעל תפקיד עודכן בהצלחה' : 'בעל תפקיד נוסף בהצלחה', 'success');
+        setModal({ open: false }); 
+        fetchMembers(); 
+      } else {
+        toast('שגיאה בשמירת בעל תפקיד', 'error');
+      }
+    } catch(err) {
+      toast('שגיאת תקשורת', 'error');
+    }
   };
 
   return (
@@ -196,14 +271,34 @@ function RosterPanel() {
                   </div>
                   <div className="input-group">
                     <label>מצב</label>
-                    <select value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} style={inputStyle}>
+                    <select value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} style={inputStyle} disabled={form.isOutOfSector}>
                       {STATES.map(s => <option key={s.v} value={s.v}>{s.l}</option>)}
                     </select>
+                  </div>
+                  <div className="input-group" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 24 }}>
+                    <input type="checkbox" checked={form.isOutOfSector} onChange={e => setForm({ ...form, isOutOfSector: e.target.checked })} style={{ width: 16, height: 16 }} />
+                    <label style={{ margin: 0 }}>מחוץ לגזרה</label>
                   </div>
                   <div className="input-group" style={{ gridColumn: '1/-1' }}>
                     <label>משימה נוכחית</label>
                     <input type="text" value={form.task} onChange={e => setForm({ ...form, task: e.target.value })} placeholder="סיור, איוש מחסום..." style={inputStyle} />
                   </div>
+                  {form.isOutOfSector && (
+                    <>
+                      <div className="input-group">
+                        <label>מחליף</label>
+                        <input type="text" value={form.replacement} onChange={e => setForm({ ...form, replacement: e.target.value })} placeholder="שם המחליף" style={inputStyle} />
+                      </div>
+                      <div className="input-group">
+                        <label>טלפון מחליף</label>
+                        <input type="tel" value={form.replacementPhone} onChange={e => setForm({ ...form, replacementPhone: e.target.value })} placeholder="050-0000000" style={inputStyle} />
+                      </div>
+                      <div className="input-group" style={{ gridColumn: '1/-1' }}>
+                        <label>שעת חזרה משוערת</label>
+                        <input type="time" value={form.returnTime} onChange={e => setForm({ ...form, returnTime: e.target.value })} style={inputStyle} />
+                      </div>
+                    </>
+                  )}
                   <div className="input-group">
                     <label>טלפון</label>
                     <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="050-0000000" style={inputStyle} />
@@ -215,7 +310,7 @@ function RosterPanel() {
                 </div>
               </div>
               <div className="f">
-                <button type="submit" className="btn brand" disabled={!form.name.trim()}>שמור</button>
+                <button type="submit" className="btn brand" disabled={!form.name?.trim()}>שמור</button>
                 <button type="button" className="btn ghost" onClick={() => setModal({ open: false })}>ביטול</button>
               </div>
             </form>
@@ -241,6 +336,7 @@ function RosterPanel() {
           <select className="input" style={{ fontSize: 12, padding: '4px 6px' }} value={stateFilter} onChange={e => setStateFilter(e.target.value)}>
             <option value="">כל המצבים</option>
             {STATES.map(s => <option key={s.v} value={s.v}>{s.l}</option>)}
+            <option value="out">מחוץ לגזרה</option>
           </select>
           {(search || stateFilter) && (
             <button className="btn ghost-red icon-sm" onClick={() => { setSearch(''); setStateFilter(''); }} title="נקה">
@@ -270,8 +366,8 @@ function RosterPanel() {
                   <td className="mono" style={{ fontSize: 12, color: 'var(--ink-3)' }}>{m.phone || '—'}</td>
                   <td className="mono" style={{ fontSize: 12, color: m.operational_phone ? 'var(--brand)' : 'var(--ink-4)' }}>{m.operational_phone || '—'}</td>
                   <td>
-                    <span className={cn('tag sm', m.state === 'field' ? 'green' : m.state === 'out' ? 'red' : 'amber')}>
-                      {STATES.find(s => s.v === m.state)?.l ?? m.state}
+                    <span className={cn('tag sm', m.state === 'field' ? 'green' : m.state === 'out' || m.is_out_of_sector ? 'red' : 'amber')}>
+                      {m.is_out_of_sector ? 'מחוץ לגזרה' : (STATES.find(s => s.v === m.state)?.l ?? m.state)}
                     </span>
                   </td>
                   <td>
