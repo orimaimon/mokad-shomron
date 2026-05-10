@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { io } from 'socket.io-client';
 import { Icon } from '../components/Icons';
 import { toast } from '../components/Toast';
 import { useNow } from '../hooks/useClock';
@@ -163,8 +164,10 @@ export function ShiftScreen({ data, user }: ShiftScreenProps) {
 
   useEffect(() => {
     fetchShifts();
-    const interval = setInterval(fetchShifts, 5000);
-    return () => clearInterval(interval);
+    const socket = io({ transports: ['websocket', 'polling'] });
+    socket.on('shifts:changed', fetchShifts);
+    const fallback = setInterval(fetchShifts, 30000);
+    return () => { socket.disconnect(); clearInterval(fallback); };
   }, [fetchShifts]);
 
   // Sync end-modal dispatchers with active shift when opening

@@ -7,6 +7,7 @@ import {
   ApprovalApproveSchema, ApprovalApproveBody,
   DBApproval,
 } from '../types.js';
+import { emit } from '../socket.js';
 
 const router = Router();
 
@@ -25,6 +26,7 @@ router.post('/', validateBody(ApprovalAddSchema), (req, res) => {
   const result = db.prepare(
     'INSERT INTO approvals (time, author, text, scene, urgent) VALUES (?, ?, ?, ?, ?)'
   ).run(time, author, text, scene ?? null, urgent ? 1 : 0);
+  emit('approvals:changed');
   res.json({ success: true, id: result.lastInsertRowid });
 });
 
@@ -38,6 +40,8 @@ router.post('/:id/approve', requireAuth, validateBody(ApprovalApproveSchema), (r
   const feedTime = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
   db.prepare('INSERT INTO feed (time, src, text, urgent) VALUES (?, ?, ?, ?)').run(feedTime, approval.author, text, approval.urgent);
   db.prepare('UPDATE approvals SET status = ? WHERE id = ?').run('approved', id);
+  emit('approvals:changed');
+  emit('feed:changed');
   res.json({ success: true });
 });
 
@@ -46,6 +50,7 @@ router.post('/:id/reject', requireAuth, (req, res) => {
   const { id } = req.params;
   const result = db.prepare('UPDATE approvals SET status = ? WHERE id = ?').run('rejected', id);
   if (result.changes === 0) return res.status(404).json({ error: 'לא נמצא' });
+  emit('approvals:changed');
   res.json({ success: true });
 });
 

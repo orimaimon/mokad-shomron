@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../db.js';
 import { validateBody } from '../middlewares/validate.js';
 import { ShiftStartSchema, ShiftStartBody, ShiftEndSchema, ShiftEndBody, DBShiftLog } from '../types.js';
+import { emit } from '../socket.js';
 
 const router = Router();
 
@@ -46,6 +47,7 @@ router.post('/start', validateBody(ShiftStartSchema), (req, res) => {
   const insertOp = db.prepare('INSERT OR IGNORE INTO shift_operators (name) VALUES (?)');
   dispatchers.forEach(name => insertOp.run(name));
 
+  emit('shifts:changed');
   res.json({ success: true, id: result.lastInsertRowid });
 });
 
@@ -75,6 +77,7 @@ router.post('/end', validateBody(ShiftEndSchema), (req, res) => {
   }
 
   if (result.changes === 0) return res.status(400).json({ error: 'אין משמרת פעילה לסגירה' });
+  emit('shifts:changed');
   res.json({ success: true });
 });
 

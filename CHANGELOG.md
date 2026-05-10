@@ -18,6 +18,22 @@
 - Added `morgan` request logging middleware (`dev` format)
 - Added global error handler — all unhandled route errors return `500` with Hebrew message instead of crashing
 
+### Architecture — WebSockets (Stage 3)
+
+- Installed `socket.io` (server) and `socket.io-client` (client)
+- `server/socket.ts` — singleton `initSocket()` + `emit()` helper shared across all route files
+- `server.ts` — switched from `app.listen()` to `http.createServer(app)` + `initSocket(httpServer)`
+- All mutation routes now emit targeted events after DB writes:
+  - `roster:changed` — roster add / edit / update / delete
+  - `incidents:changed` — incident open / close / update
+  - `feed:changed` — feed post / delete / incident open / approval approve
+  - `emergency:changed` — emergency start / update / close / evac add / delete
+  - `shifts:changed` — shift start / end
+  - `approvals:changed` — approval submit / approve / reject
+- **App.tsx** — replaced 3s polling with socket listeners; 30s fallback interval kept for resilience; individual `fetchRoster / fetchFeed / fetchIncidents / fetchEmergency` extracted for targeted refetch
+- **ShiftScreen.tsx** — replaced 5s interval with `shifts:changed` socket event + 30s fallback
+- **ManagementScreen.tsx** — replaced 5s interval with `approvals:changed` socket event + 30s fallback
+
 ---
 
 ### Fix — Wording

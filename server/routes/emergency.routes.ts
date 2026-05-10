@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import db from '../db.js';
 import { validateBody } from '../middlewares/validate.js';
-import { 
-  EmergencyStartSchema, EmergencyStartBody, 
-  EmergencyUpdateSchema, EmergencyUpdateBody, 
+import {
+  EmergencyStartSchema, EmergencyStartBody,
+  EmergencyUpdateSchema, EmergencyUpdateBody,
   EmergencyCloseSchema, EmergencyCloseBody,
-  DBActiveEvent 
+  DBActiveEvent
 } from '../types.js';
+import { emit } from '../socket.js';
 
 const router = Router();
 
@@ -40,6 +41,8 @@ router.post('/start', validateBody(EmergencyStartSchema), (req, res) => {
     snapshot_at, 'מערכת', `נפתח אירוע חירום חדש: ${type} ב${location}`, id
   );
 
+  emit('emergency:changed');
+  emit('feed:changed');
   res.json({ success: true, id });
 });
 
@@ -58,12 +61,14 @@ router.post('/update', validateBody(EmergencyUpdateSchema), (req, res) => {
     description || '', snapshot_at, map_coords || '', id
   );
 
+  emit('emergency:changed');
   res.json({ success: true });
 });
 
 router.post('/close', validateBody(EmergencyCloseSchema), (req, res) => {
   const { id } = req.body as EmergencyCloseBody;
   db.prepare('UPDATE active_event SET is_active = 0 WHERE id = ?').run(id);
+  emit('emergency:changed');
   res.json({ success: true });
 });
 

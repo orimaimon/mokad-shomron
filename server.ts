@@ -1,9 +1,11 @@
 import express, { Request, Response, NextFunction } from 'express';
+import { createServer as createHTTPServer } from 'http';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
 import morgan from 'morgan';
+import { initSocket } from './server/socket.js';
 
 // Import domain routers
 import authRoutes from './server/routes/auth.routes.js';
@@ -57,8 +59,11 @@ async function startServer() {
     res.status(500).json({ error: 'שגיאת שרת פנימית' });
   });
 
+  const httpServer = createHTTPServer(app);
+  initSocket(httpServer);
+
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running at http://localhost:${PORT}`);
   });
 }

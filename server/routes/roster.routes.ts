@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../db.js';
 import { validateBody } from '../middlewares/validate.js';
 import { RosterAddSchema, RosterAddBody, RosterEditSchema, RosterEditBody, RosterUpdateSchema, RosterUpdateBody } from '../types.js';
+import { emit } from '../socket.js';
 
 const router = Router();
 
@@ -32,6 +33,7 @@ router.post('/update', validateBody(RosterUpdateSchema), (req, res) => {
     db.prepare('INSERT OR IGNORE INTO replacements (name) VALUES (?)').run(replacement);
   }
 
+  emit('roster:changed');
   res.json({ success: true });
 });
 
@@ -41,6 +43,7 @@ router.post('/add', validateBody(RosterAddSchema), (req, res) => {
     INSERT INTO roster (name, role, task, out_time, state, is_out_of_sector, replacement, phone, operational_phone)
     VALUES (?, ?, ?, ?, ?, 0, '', ?, ?)
   `).run(name, role || '', task || '', new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), state || 'field', phone || '', operational_phone || '');
+  emit('roster:changed');
   res.json({ success: true, id: result.lastInsertRowid });
 });
 
@@ -48,11 +51,13 @@ router.post('/:id/edit', validateBody(RosterEditSchema), (req, res) => {
   const { name, role, task, phone, operational_phone, state } = req.body as RosterEditBody;
   db.prepare('UPDATE roster SET name = ?, role = ?, task = ?, phone = ?, operational_phone = ?, state = ? WHERE id = ?')
     .run(name, role || '', task || '', phone || '', operational_phone || '', state || 'field', req.params.id);
+  emit('roster:changed');
   res.json({ success: true });
 });
 
 router.delete('/:id', (req, res) => {
   db.prepare('DELETE FROM roster WHERE id = ?').run(req.params.id);
+  emit('roster:changed');
   res.json({ success: true });
 });
 

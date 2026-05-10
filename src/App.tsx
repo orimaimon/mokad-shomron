@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MOKAD_DATA } from './data/mockData';
 import { Icon } from './components/Icons';
 import { useNow, fmtTime, fmtDate } from './hooks/useClock';
@@ -14,6 +14,7 @@ import { ShiftScreen } from './screens/ShiftScreen';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import { MokadData, User, NavItem, OpenEventFormData, DBFeedItem, DBIncident, DBRosterMember, DBActiveEventRaw } from './types';
+import { io } from 'socket.io-client';
 import { ToastProvider, toast, confirmDialog } from './components/Toast';
 import './App.css';
 
@@ -211,28 +212,53 @@ function App() {
     }
   }, [token]);
 
-  const refreshRoster = async () => {
+  const fetchRoster = useCallback(async () => {
     try {
       const res = await fetch('/api/roster');
       if (res.ok) setRoster(await res.json());
     } catch {}
-  };
+  }, []);
 
-  // Data Polling
+  const refreshRoster = fetchRoster;
+
+  const fetchFeed = useCallback(async () => {
+    try {
+      const res = await fetch('/api/feed');
+      if (res.ok) setFeed(await res.json());
+    } catch {}
+  }, []);
+
+  const fetchIncidents = useCallback(async () => {
+    try {
+      const res = await fetch('/api/incidents');
+      if (res.ok) setIncidents(await res.json());
+    } catch {}
+  }, []);
+
+  const fetchEmergency = useCallback(async () => {
+    try {
+      const res = await fetch('/api/emergency/active');
+      if (!res.ok) return;
+      const eventData = await res.json();
+      setActiveEvent(eventData);
+      setEmergencyActive(!!eventData);
+      if (eventData && screen === 'routine') setScreen('emergency');
+    } catch {}
+  }, [screen]);
+
+  // Initial load + 30s fallback polling
   useEffect(() => {
     if (!token) return;
 
-    const fetchData = async () => {
+    const fetchAll = async () => {
       try {
-        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
         const [eventRes, incRes, feedRes, rosterRes] = await Promise.all([
           fetch('/api/emergency/active'),
           fetch('/api/incidents'),
           fetch('/api/feed'),
-          fetch('/api/roster')
+          fetch('/api/roster'),
         ]);
 
-        // Detect expired session from any auth-protected call
         if ([eventRes, incRes, feedRes, rosterRes].some(r => r.status === 401)) {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
@@ -243,29 +269,32 @@ function App() {
         }
 
         const eventData = await eventRes.json();
-        const incData = await incRes.json();
-        const feedData = await feedRes.json();
-        const rosterData = await rosterRes.json();
-
         setActiveEvent(eventData);
         setEmergencyActive(!!eventData);
-        setIncidents(incData);
-        setFeed(feedData);
-        setRoster(rosterData);
-
-        // Auto-switch to emergency if just started
-        if (eventData && screen === 'routine') {
-          setScreen('emergency');
-        }
+        if (eventData && screen === 'routine') setScreen('emergency');
+        setIncidents(await incRes.json());
+        setFeed(await feedRes.json());
+        setRoster(await rosterRes.json());
       } catch (err) {
         console.error('Failed to fetch data', err);
       }
     };
 
-    fetchData();
-    const interval = setInterval(fetchData, 3000); // Poll every 3 seconds
-    return () => clearInterval(interval);
-  }, [token, screen]);
+    fetchAll();
+    const fallback = setInterval(fetchAll, 30000);
+    return () => clearInterval(fallback);
+  }, [token]);
+
+  // WebSocket listeners — instant updates on any mutation
+  useEffect(() => {
+    if (!token) return;
+    const socket = io({ transports: ['websocket', 'polling'] });
+    socket.on('roster:changed', fetchRoster);
+    socket.on('feed:changed', fetchFeed);
+    socket.on('incidents:changed', fetchIncidents);
+    socket.on('emergency:changed', fetchEmergency);
+    return () => { socket.disconnect(); };
+  }, [token, fetchRoster, fetchFeed, fetchIncidents, fetchEmergency]);
 
   useEffect(() => {
     document.body.classList.toggle('emergency', emergencyActive);

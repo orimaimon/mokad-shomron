@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../db.js';
 import { validateBody } from '../middlewares/validate.js';
 import { IncidentAddSchema, IncidentAddBody, IncidentUpdateSchema, IncidentUpdateBody } from '../types.js';
+import { emit } from '../socket.js';
 
 const router = Router();
 
@@ -19,11 +20,14 @@ router.post('/', validateBody(IncidentAddSchema), (req, res) => {
   db.prepare('INSERT INTO feed (time, src, text, urgent, system) VALUES (?, ?, ?, ?, 1)').run(
     time, 'מערכת', `אירוע שגרה נפתח: ${type} ב${location}`, severity === 'red' ? 1 : 0
   );
+  emit('incidents:changed');
+  emit('feed:changed');
   res.json({ success: true, id: result.lastInsertRowid });
 });
 
 router.post('/:id/close', (req, res) => {
   db.prepare('UPDATE incidents SET status = ? WHERE id = ?').run('הסתיים', req.params.id);
+  emit('incidents:changed');
   res.json({ success: true });
 });
 
@@ -31,6 +35,7 @@ router.post('/:id/update', validateBody(IncidentUpdateSchema), (req, res) => {
   const { type, location, status, severity } = req.body as IncidentUpdateBody;
   db.prepare('UPDATE incidents SET type = ?, location = ?, status = ?, severity = ? WHERE id = ?')
     .run(type, location, status, severity, req.params.id);
+  emit('incidents:changed');
   res.json({ success: true });
 });
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { io } from 'socket.io-client';
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtHM } from '../hooks/useClock';
 import { MokadData, ApprovalRequest } from '../types';
@@ -33,8 +34,11 @@ export function ManagementScreen({ data }: { data: MokadData }) {
 
   useEffect(() => {
     fetchApprovals();
-    const id = setInterval(fetchApprovals, 5000);
-    return () => clearInterval(id);
+    const socket = io({ transports: ['websocket', 'polling'] });
+    socket.on('approvals:changed', fetchApprovals);
+    socket.on('feed:changed', fetchApprovals);
+    const fallback = setInterval(fetchApprovals, 30000);
+    return () => { socket.disconnect(); clearInterval(fallback); };
   }, [fetchApprovals]);
 
   useEffect(() => {
