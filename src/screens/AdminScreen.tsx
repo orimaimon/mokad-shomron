@@ -44,21 +44,27 @@ function UsersPanel() {
   };
 
   const handleSave = async () => {
+    if (!form.name.trim()) { toast('שם מלא הוא שדה חובה', 'error'); return; }
+    if (!form.email.trim()) { toast('אימייל הוא שדה חובה', 'error'); return; }
+    if (!modal.user && !form.password.trim()) { toast('סיסמה נדרשת למשתמש חדש', 'error'); return; }
     try {
       const token = localStorage.getItem('token');
+      const body = { ...form };
+      if (!body.password) delete (body as Partial<typeof body>).password;
       const res = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
-      if (res.ok) { 
+      if (res.ok) {
         toast('משתמש נשמר בהצלחה', 'success');
-        setModal({ open: false }); 
-        fetchUsers(); 
+        setModal({ open: false });
+        fetchUsers();
       } else {
-        toast('שגיאה בשמירת משתמש', 'error');
+        const data = await res.json().catch(() => ({}));
+        toast(data.error || 'שגיאה בשמירת משתמש', 'error');
       }
-    } catch(err) {
+    } catch {
       toast('שגיאת תקשורת', 'error');
     }
   };
