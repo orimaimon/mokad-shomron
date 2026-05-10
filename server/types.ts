@@ -75,6 +75,7 @@ export interface DBShiftLog {
   out_of_sector_count: number;
   hardware_status: string;
   notes: string;
+  dispatchers: string;
 }
 
 // --- Zod API Validation Schemas ---
@@ -158,6 +159,7 @@ export const EmergencyCloseSchema = z.object({
 
 export const ShiftStartSchema = z.object({
   manager_name: z.string().min(1),
+  dispatchers: z.array(z.string().min(1)).optional(),
 });
 
 export const ShiftEndSchema = z.object({
@@ -165,6 +167,7 @@ export const ShiftEndSchema = z.object({
   out_of_sector_count: z.number().int().min(0),
   hardware_status: z.string(),
   notes: z.string(),
+  dispatchers: z.array(z.string().min(1)).optional(),
 });
 
 export const EvacSchema = z.object({

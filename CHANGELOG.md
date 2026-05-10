@@ -2,6 +2,20 @@
 
 ## [Unreleased] — 2026-05-10
 
+### Feature — Dispatcher Roster in Shift Log (יומן משמרת)
+
+- Added `shift_operators` table — stores dispatcher names permanently for future autocomplete (INSERT OR IGNORE, no duplicates)
+- Added `dispatchers TEXT DEFAULT '[]'` column to `shift_logs` with automatic migration for existing databases
+- `GET /api/shifts/operators` — returns all saved operator names sorted A→Z for autocomplete
+- `POST /api/shifts/start` — now accepts `dispatchers: string[]`; saves names to `shift_operators`
+- `POST /api/shifts/end` — accepts updated `dispatchers[]` (team may change mid-shift); also persists to `shift_operators`
+- Routes parse `dispatchers` JSON before sending to client — client always receives `string[]`, never a raw string
+- **Start Shift Modal** — replaced direct button click with a proper modal; includes `DispatcherInput` for entering on-duty staff
+- **`DispatcherInput` component** — tag-input with `<datalist>` autocomplete from saved names; Enter or + to add, × to remove
+- **Active shift banner** — shows all on-duty dispatchers as tags below manager name
+- **End Shift Modal** — includes dispatcher field to update team at handover (someone joined / left mid-shift)
+- **History table** — new "צוות תורנות" column shows dispatcher tags per shift
+
 ### Architecture — Server Modularization
 
 - Refactored monolithic `server.ts` into a domain-driven module structure under `server/`

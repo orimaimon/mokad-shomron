@@ -244,6 +244,7 @@ export interface DBShiftLog {
   out_of_sector_count: number;
   hardware_status: string;
   notes: string;
+  dispatchers: string[];
 }
 
 export interface MokadData {

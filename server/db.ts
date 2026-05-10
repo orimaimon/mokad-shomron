@@ -111,7 +111,13 @@ db.exec(`
     open_incidents_count INTEGER DEFAULT 0,
     out_of_sector_count INTEGER DEFAULT 0,
     hardware_status TEXT,
-    notes TEXT
+    notes TEXT,
+    dispatchers TEXT DEFAULT '[]'
+  );
+
+  CREATE TABLE IF NOT EXISTS shift_operators (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE
   );
 `);
 
@@ -121,6 +127,7 @@ try { db.exec('ALTER TABLE active_event ADD COLUMN map_coords TEXT DEFAULT ""');
 try { db.exec('ALTER TABLE roster ADD COLUMN phone TEXT DEFAULT ""'); } catch {}
 try { db.exec('ALTER TABLE roster ADD COLUMN operational_phone TEXT DEFAULT ""'); } catch {}
 try { db.exec('ALTER TABLE roster ADD COLUMN replacement_phone TEXT DEFAULT ""'); } catch {}
+try { db.exec('ALTER TABLE shift_logs ADD COLUMN dispatchers TEXT DEFAULT \'[]\''); } catch {}
 
 // Seed default admin if empty
 const adminCount = db.prepare('SELECT count(*) as count FROM users').get() as { count: number };
