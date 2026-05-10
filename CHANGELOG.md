@@ -1,0 +1,57 @@
+# Changelog
+
+## [Unreleased] — 2026-05-10
+
+### Architecture — Server Modularization
+
+- Refactored monolithic `server.ts` into a domain-driven module structure under `server/`
+- Each domain has its own router: `auth`, `roster`, `incidents`, `feed`, `emergency`, `evac`, `reports`, `admin`, `shifts`
+- `server/db.ts` — centralized DB init, WAL mode, schema creation, migrations, and seed data
+- `server/config.ts` — `JWT_SECRET` and `PORT` as single source of truth (no more duplication across route files)
+- `server/types.ts` — all DB interfaces and Zod validation schemas in one place
+- `server/middlewares/auth.ts` — `requireAuth` / `requireAdmin` with proper `req.user` typing (no `as any`)
+- `server/middlewares/validate.ts` — generic `validateBody(schema)` middleware using Zod
+- `server/express.d.ts` — Express Request type augmentation for `req.user: JWTPayload`
+
+### Type Safety — Zero `any`
+
+- Eliminated all `any` types across the entire codebase (server and client)
+- `src/types.ts` — complete rewrite with strict interfaces: `DBRosterMember`, `DBFeedItem`, `DBIncident`, `DBActiveEventRaw`, `DBShiftLog`, `ShiftHardware`, `RosterMember`, `RoutineIncident`, `LogEntry`, `ActiveEvent`, and more
+- Added `'unavailable'` to the roster state union (`field | brief | return | out | unavailable`)
+- Dynamic sort in `RoutineScreen` uses `Record<string, unknown>` instead of `as any`
+- `Icon` component uses `LucideProps` instead of `[key: string]: any`
+
+### State Synchronization — Roster Single Source of Truth
+
+- `App.tsx` is now the single source of truth for roster data, polled every 3 seconds
+- Removed independent `fetchRoster()` from `RoutineScreen` and `fetchMembers()` from `AdminScreen`
+- Both screens receive `roster` from the polling loop — edits in either screen reflect immediately everywhere
+- Added `refreshRoster()` — targeted immediate re-fetch after any roster mutation
+- The "בעלי תפקידים בשטח" metric in the dashboard is now always in sync
+- Roster mapping in `App.tsx` now includes `returnTime` (was missing, caused empty return-time in edit modal)
+
+### Shared UI — Roster State Badges
+
+- Added `getRosterStateConfig(state)` to `src/lib/utils.ts` — single source of truth for state labels and colors
+- State mappings: `field → green`, `brief → amber`, `return → blue`, `unavailable → red`, `out → red`
+- Both `RoutineScreen` and `AdminScreen` use `<span className="tag sm {colorClass}">` via the helper
+- Eliminated hardcoded Hebrew fallbacks and per-screen color logic
+
+### Feature — Shift Log (יומן משמרת)
+
+- Complete rewrite of `ShiftScreen.tsx`
+- Live elapsed-time clock for the active shift (updates every second via `useNow`)
+- Hardware status (`cameras / vehicles / comms`) stored as JSON, parsed and displayed as colored badges in both the handover modal and the history table
+- Added **duration** column to history table (`start → end`)
+- Polling every 5 seconds — shift started on another tab/browser appears automatically
+- `user` received as prop from `App` instead of reading `localStorage` directly in the component
+- `POST /api/shifts/end` now returns `400` with a Hebrew error message when there is no active shift to close (previously returned `success: true` silently)
+- Expandable notes in history table (click to expand/collapse)
+
+### Bug Fixes
+
+- Fixed `ArchiveScreen` discriminator bug: renamed `type` to `reportKind` to prevent DB event `type` field from overwriting the union discriminator in `PrintWrap`
+- Fixed `/api/replacements` URL in `RoutineScreen` → `/api/roster/replacements` (was 404)
+- Fixed `server/routes/evac.routes.ts` — `EvacSchema` moved to `server/types.ts`, removed inline duplicate
+- Restored `EvacSchema`, `EvacBody`, `JWTPayload` exports in `server/types.ts` after file was overwritten
+- `DBShiftLog` and `ShiftHardware` added to `src/types.ts` — `ShiftScreen` import was broken (type not found)

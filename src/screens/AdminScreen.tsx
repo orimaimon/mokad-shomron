@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Icon } from '../components/Icons';
-import { cn } from '../lib/utils';
+import { cn, getRosterStateConfig } from '../lib/utils';
 import { toast } from '../components/Toast';
+import { DBRosterMember } from '../types';
 
 interface User {
   email: string;
@@ -9,19 +10,6 @@ interface User {
   role: string;
 }
 
-interface RosterMember {
-  id: number;
-  name: string;
-  role: string;
-  task: string;
-  phone: string;
-  operational_phone: string;
-  state: string;
-  is_out_of_sector?: number;
-  replacement?: string;
-  replacement_phone?: string;
-  return_time?: string;
-}
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '10px', borderRadius: 8,
@@ -153,22 +141,14 @@ const STATES = [
 
 const emptyMember = { name: '', role: '', task: '', phone: '', operational_phone: '', state: 'field', isOutOfSector: false, replacement: '', replacementPhone: '', returnTime: '' };
 
-function RosterPanel() {
-  const [members, setMembers] = useState<RosterMember[]>([]);
-  const [modal, setModal] = useState<{ open: boolean; member?: RosterMember | null }>({ open: false });
+function RosterPanel({ members, onRosterChange }: { members: DBRosterMember[], onRosterChange: () => void }) {
+  const [modal, setModal] = useState<{ open: boolean; member?: DBRosterMember | null }>({ open: false });
   const [form, setForm] = useState({ ...emptyMember });
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState('');
 
-  const fetchMembers = async () => {
-    const res = await fetch('/api/roster');
-    if (res.ok) setMembers(await res.json());
-  };
-
-  useEffect(() => { fetchMembers(); }, []);
-
   const openAdd = () => { setForm({ ...emptyMember }); setModal({ open: true, member: null }); };
-  const openEdit = (m: RosterMember) => {
+  const openEdit = (m: DBRosterMember) => {
     setForm({ 
       name: m.name || '', 
       role: m.role || '', 
@@ -187,7 +167,7 @@ function RosterPanel() {
   const handleDelete = async (id: number) => {
     if (!confirm('למחוק את בעל התפקיד?')) return;
     await fetch(`/api/roster/${id}`, { method: 'DELETE' });
-    fetchMembers();
+    onRosterChange();
   };
 
   const handleSave = async () => {
@@ -242,8 +222,8 @@ function RosterPanel() {
         }
         
         toast(isEdit ? 'בעל תפקיד עודכן בהצלחה' : 'בעל תפקיד נוסף בהצלחה', 'success');
-        setModal({ open: false }); 
-        fetchMembers(); 
+        setModal({ open: false });
+        onRosterChange();
       } else {
         toast('שגיאה בשמירת בעל תפקיד', 'error');
       }
@@ -359,25 +339,26 @@ function RosterPanel() {
                   }
                   return true;
                 })
-                .map(m => (
-                <tr key={m.id}>
-                  <td style={{ fontWeight: 500 }}>{m.name}</td>
-                  <td style={{ color: 'var(--ink-3)' }}>{m.role}</td>
-                  <td className="mono" style={{ fontSize: 12, color: 'var(--ink-3)' }}>{m.phone || '—'}</td>
-                  <td className="mono" style={{ fontSize: 12, color: m.operational_phone ? 'var(--brand)' : 'var(--ink-4)' }}>{m.operational_phone || '—'}</td>
-                  <td>
-                    <span className={cn('tag sm', m.state === 'field' ? 'green' : m.state === 'out' || m.is_out_of_sector ? 'red' : 'amber')}>
-                      {m.is_out_of_sector ? 'מחוץ לגזרה' : (STATES.find(s => s.v === m.state)?.l ?? m.state)}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn ghost-brand icon-sm" onClick={() => openEdit(m)}><Icon name="Edit" style={{ width: 14 }} /></button>
-                      <button className="btn ghost-red icon-sm" onClick={() => handleDelete(m.id)}><Icon name="Trash" style={{ width: 14 }} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                .map(m => {
+                  const stateConfig = getRosterStateConfig(m.is_out_of_sector ? 'out' : m.state);
+                  return (
+                    <tr key={m.id}>
+                      <td style={{ fontWeight: 500 }}>{m.name}</td>
+                      <td style={{ color: 'var(--ink-3)' }}>{m.role}</td>
+                      <td className="mono" style={{ fontSize: 12, color: 'var(--ink-3)' }}>{m.phone || '—'}</td>
+                      <td className="mono" style={{ fontSize: 12, color: m.operational_phone ? 'var(--brand)' : 'var(--ink-4)' }}>{m.operational_phone || '—'}</td>
+                      <td>
+                        <span className={cn('tag sm', stateConfig.colorClass)}>{stateConfig.label}</span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button className="btn ghost-brand icon-sm" onClick={() => openEdit(m)}><Icon name="Edit" style={{ width: 14 }} /></button>
+                          <button className="btn ghost-red icon-sm" onClick={() => handleDelete(m.id)}><Icon name="Trash" style={{ width: 14 }} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>
@@ -388,7 +369,7 @@ function RosterPanel() {
 
 // ── Main screen ────────────────────────────────────────────────────────────
 
-export function AdminScreen() {
+export function AdminScreen({ roster, onRosterChange }: { roster: DBRosterMember[], onRosterChange: () => void }) {
   const [tab, setTab] = useState<'users' | 'roster'>('roster');
 
   return (
@@ -403,7 +384,7 @@ export function AdminScreen() {
       </div>
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {tab === 'users' ? <UsersPanel /> : <RosterPanel />}
+        {tab === 'users' ? <UsersPanel /> : <RosterPanel members={roster} onRosterChange={onRosterChange} />}
       </div>
     </div>
   );

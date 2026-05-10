@@ -1,14 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtDate } from '../hooks/useClock';
-import { MokadData, RosterMember, RoutineIncident, DBRosterMember } from '../types';
-import { cn } from '../lib/utils';
+import { MokadData, RosterMember, RoutineIncident } from '../types';
+import { cn, getRosterStateConfig } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from '../components/Toast';
 
 interface RoutineScreenProps {
   data: MokadData;
   onOpenEmergency: () => void;
+  onRosterChange: () => void;
 }
 
 const inputStyle = { width: '100%', padding: '10px', borderRadius: 8, background: 'var(--bg-2)', border: '1px solid var(--border-1)', color: 'white' };
@@ -28,7 +29,7 @@ function RosterUpdateModal({ person, onClose, onSave, onDelete }: { person: Rost
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch('/api/replacements').then(r => r.json()).then(setSuggestions);
+    fetch('/api/roster/replacements').then(r => r.json()).then(setSuggestions);
   }, []);
 
   const handleSave = async () => {
@@ -351,11 +352,10 @@ function NewPersonModal({ onClose, onSave }: { onClose: () => void, onSave: () =
   );
 }
 
-export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
+export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: RoutineScreenProps) {
   const r = data.routine;
   const now = useNow();
   const [tab, setTab] = useState<'in' | 'out'>('out');
-  const [roster, setRoster] = useState<RosterMember[]>([]);
   const [editingPerson, setEditingPerson] = useState<RosterMember | null>(null);
   const [showNewPerson, setShowNewPerson] = useState(false);
   const [showNewIncident, setShowNewIncident] = useState(false);
@@ -400,26 +400,10 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
     } catch (err) {}
   };
 
-  const fetchRoster = () => {
-    fetch('/api/roster').then(res => res.json()).then(data => {
-      const mapped = (data as DBRosterMember[]).map(item => ({
-        ...item,
-        out: item.out_time,
-        returnTime: item.return_time,
-        isOutOfSector: !!item.is_out_of_sector
-      }));
-      setRoster(mapped);
-    });
-  };
-
-  useEffect(() => {
-    fetchRoster();
-  }, []);
-
   const handleDeletePerson = async (id: number) => {
     if (!window.confirm('האם אתה בטוח שברצונך למחוק בעל תפקיד זה?')) return;
     await fetch(`/api/roster/${id}`, { method: 'DELETE' }).catch(() => {});
-    fetchRoster();
+    onRosterChange();
     setEditingPerson(null);
   };
 
@@ -455,8 +439,8 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
     );
   }, [r.feed, deletedIds, feedSearch]);
 
-  const inSector = roster.filter(p => !p.isOutOfSector);
-  const outOfSector = roster.filter(p => p.isOutOfSector);
+  const inSector = r.roster.filter(p => !p.isOutOfSector);
+  const outOfSector = r.roster.filter(p => p.isOutOfSector);
 
   const filteredRoster = useMemo(() => {
     const base = tab === 'in' ? inSector : outOfSector;
@@ -485,13 +469,13 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
           onClose={() => setEditingPerson(null)} 
           onSave={() => {
             setEditingPerson(null);
-            fetchRoster();
+            onRosterChange();
           }}
           onDelete={() => handleDeletePerson(editingPerson.id)}
         />
       )}
       {showNewPerson && (
-        <NewPersonModal onClose={() => setShowNewPerson(false)} onSave={() => { setShowNewPerson(false); fetchRoster(); }} />
+        <NewPersonModal onClose={() => setShowNewPerson(false)} onSave={() => { setShowNewPerson(false); onRosterChange(); }} />
       )}
       {showNewIncident && (
         <NewIncidentModal onClose={() => setShowNewIncident(false)} onSave={() => setShowNewIncident(false)} />
@@ -545,8 +529,8 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
             <div className="metric">
               <div className="lbl">בעלי תפקידים בשטח</div>
               <div className="num">
-                {roster.filter(p => p.state === 'field').length}
-                <span style={{ fontSize: 14, color: 'var(--ink-3)' }}> / {roster.length}</span>
+                {r.roster.filter(p => p.state === 'field').length}
+                <span style={{ fontSize: 14, color: 'var(--ink-3)' }}> / {r.roster.length}</span>
               </div>
             </div>
           </div>
@@ -748,6 +732,7 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
                   <div style={{ padding: 16, color: 'var(--ink-4)', textAlign: 'center', fontSize: 13 }}>אין תוצאות</div>
                 )}
                 {filteredRoster.map((person, i) => {
+                  const stateConfig = getRosterStateConfig(person.state);
                   return (
                     <div key={i} style={{ borderBottom: '1px solid var(--border-1)' }}>
                       {/* main row */}
@@ -776,9 +761,7 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
                           )}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
-                          <span className={cn('st', person.state)}>
-                            {person.state === 'field' ? 'בשטח' : person.state === 'brief' ? 'תדריך' : person.state === 'return' ? 'בחזרה' : 'לא זמין'}
-                          </span>
+                          <span className={cn('tag sm', stateConfig.colorClass)}>{stateConfig.label}</span>
                           <span className="meta">מ- {person.out}</span>
                           {person.isOutOfSector && person.return_time && (
                             <span className="meta mono" style={{ fontSize: 10 }}>חזרה: {person.return_time}</span>

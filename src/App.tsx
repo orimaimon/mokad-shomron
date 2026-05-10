@@ -10,6 +10,7 @@ import { MobileScreen } from './screens/MobileScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { AdminScreen } from './screens/AdminScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
+import { ShiftScreen } from './screens/ShiftScreen';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import { MokadData, User, NavItem, OpenEventFormData, DBFeedItem, DBIncident, DBRosterMember, DBActiveEventRaw } from './types';
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { k: 'emergency', label: 'אירוע חירום', icon: 'Siren' },
   { k: 'dashboard', label: 'מצב חמ"ל', icon: 'Monitor', cls: 'brand-nav' },
   { k: 'manage', label: 'ניהול מוקד', icon: 'Settings' },
+  { k: 'shifts', label: 'יומן משמרת', icon: 'Clock' },
   { k: 'archive', label: 'ארכיון ודוחות', icon: 'Archive' },
   { k: 'mobile', label: 'ממשק מדווח', icon: 'User' },
   { k: 'admin', label: 'ניהול מערכת', icon: 'Shield', admin: true },
@@ -209,6 +211,13 @@ function App() {
     }
   }, [token]);
 
+  const refreshRoster = async () => {
+    try {
+      const res = await fetch('/api/roster');
+      if (res.ok) setRoster(await res.json());
+    } catch {}
+  };
+
   // Data Polling
   useEffect(() => {
     if (!token) return;
@@ -365,7 +374,7 @@ function App() {
         sev: i.severity,
       })),
       feed: mappedFeed,
-      roster: roster.map(r => ({ ...r, out: r.out_time, isOutOfSector: !!r.is_out_of_sector })),
+      roster: roster.map(r => ({ ...r, out: r.out_time, returnTime: r.return_time, isOutOfSector: !!r.is_out_of_sector })),
       metrics: {
         ...data.routine.metrics,
         open: incidents.filter(i => i.status !== 'הסתיים').length,
@@ -398,7 +407,7 @@ function App() {
       );
     }
   } else if (screen === 'routine') {
-    body = <RoutineScreen data={fullData} onOpenEmergency={handleOpenEmergency} />;
+    body = <RoutineScreen data={fullData} onOpenEmergency={handleOpenEmergency} onRosterChange={refreshRoster} />;
   } else if (screen === 'manage') {
     body = <ManagementScreen data={fullData} />;
   } else if (screen === 'archive') {
@@ -406,9 +415,11 @@ function App() {
   } else if (screen === 'mobile') {
     body = <MobileScreen data={fullData} />;
   } else if (screen === 'admin') {
-    body = <AdminScreen />;
+    body = <AdminScreen roster={roster} onRosterChange={refreshRoster} />;
   } else if (screen === 'dashboard') {
     body = <DashboardScreen />;
+  } else if (screen === 'shifts') {
+    body = <ShiftScreen data={fullData} user={user!} />;
   }
 
   return (

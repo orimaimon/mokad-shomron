@@ -32,7 +32,7 @@ export interface DBRosterMember {
   out_time: string;
   return_time: string;
   reason: string;
-  state: 'field' | 'brief' | 'return' | 'out';
+  state: 'field' | 'brief' | 'return' | 'out' | 'unavailable';
   is_out_of_sector: number;
   replacement: string;
   replacement_phone: string;
@@ -176,7 +176,7 @@ export interface RosterMember {
   returnTime?: string;
   return_time?: string;
   reason?: string;
-  state: 'field' | 'brief' | 'return' | 'out';
+  state: 'field' | 'brief' | 'return' | 'out' | 'unavailable';
   isOutOfSector?: boolean;
   is_out_of_sector?: number;
   replacement?: string;
@@ -225,6 +225,25 @@ export interface MediaItem {
   t: string;
   cls: string;
   dur?: string;
+}
+
+export interface ShiftHardware {
+  cameras: boolean;
+  vehicles: boolean;
+  comms: boolean;
+  other: string;
+}
+
+export interface DBShiftLog {
+  id: number;
+  manager_name: string;
+  start_time: string;
+  end_time: string | null;
+  status: string;
+  open_incidents_count: number;
+  out_of_sector_count: number;
+  hardware_status: string;
+  notes: string;
 }
 
 export interface MokadData {
