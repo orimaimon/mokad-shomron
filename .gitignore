@@ -23,3 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 .vite/
+
+# Environment and database
+.env
+mokad.db
+mokad.db-shm
+mokad.db-wal
