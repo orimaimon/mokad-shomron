@@ -1,8 +1,9 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
+import morgan from 'morgan';
 
 // Import domain routers
 import authRoutes from './server/routes/auth.routes.js';
@@ -14,6 +15,7 @@ import evacRoutes from './server/routes/evac.routes.js';
 import adminRoutes from './server/routes/admin.routes.js';
 import reportsRoutes from './server/routes/reports.routes.js';
 import shiftsRoutes from './server/routes/shifts.routes.js';
+import approvalsRoutes from './server/routes/approvals.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -21,6 +23,7 @@ async function startServer() {
   const app = express();
   app.use(express.json());
   app.use(cors());
+  app.use(morgan('dev'));
 
   // --- API ROUTES ---
   app.use('/api', authRoutes); // mounts /api/login
@@ -32,6 +35,7 @@ async function startServer() {
   app.use('/api/admin', adminRoutes);
   app.use('/api/reports', reportsRoutes);
   app.use('/api/shifts', shiftsRoutes);
+  app.use('/api/approvals', approvalsRoutes);
 
   // --- VITE MIDDLEWARE ---
   if (process.env.NODE_ENV !== 'production') {
@@ -46,6 +50,12 @@ async function startServer() {
       res.sendFile(path.join(__dirname, 'dist', 'index.html'));
     });
   }
+
+  // --- GLOBAL ERROR HANDLER ---
+  app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+    console.error(err.stack ?? err.message);
+    res.status(500).json({ error: 'שגיאת שרת פנימית' });
+  });
 
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   app.listen(PORT, '0.0.0.0', () => {

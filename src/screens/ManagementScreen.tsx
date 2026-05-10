@@ -1,17 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtHM } from '../hooks/useClock';
 import { MokadData, ApprovalRequest } from '../types';
 import { toast } from '../components/Toast';
 import { cn } from '../lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 export function ManagementScreen({ data }: { data: MokadData }) {
   const now = useNow();
-  const [approvals, setApprovals] = useState(data.approvals || []);
+  const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editedText, setEditedText] = useState('');
-  
+
   const [report, setReport] = useState({
     time: fmtHM(now),
     author: 'מוקדן',
@@ -21,8 +21,23 @@ export function ManagementScreen({ data }: { data: MokadData }) {
   });
   const [sending, setSending] = useState(false);
 
+  const fetchApprovals = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch('/api/approvals', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setApprovals(await res.json());
+    } catch {}
+  }, []);
+
   useEffect(() => {
-    // Keep time updated if user hasn't typed anything yet
+    fetchApprovals();
+    const id = setInterval(fetchApprovals, 5000);
+    return () => clearInterval(id);
+  }, [fetchApprovals]);
+
+  useEffect(() => {
     if (!report.text) {
       setReport(r => ({ ...r, time: fmtHM(new Date()) }));
     }
@@ -51,13 +66,14 @@ export function ManagementScreen({ data }: { data: MokadData }) {
   };
 
   const handleApprove = async (a: ApprovalRequest) => {
-    const textToApprove = editingId === a.id ? editedText : a.text;
-    if (!textToApprove.trim()) return;
+    const textOverride = editingId === a.id ? editedText : undefined;
+    if (textOverride !== undefined && !textOverride.trim()) return;
+    const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/feed', {
+      const res = await fetch(`/api/approvals/${a.id}/approve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ src: a.author, text: textToApprove, urgent: a.urgent })
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(textOverride !== undefined ? { text: textOverride } : {}),
       });
       if (res.ok) {
         toast('הדיווח אושר ופורסם ביומן', 'success');
@@ -71,7 +87,14 @@ export function ManagementScreen({ data }: { data: MokadData }) {
     }
   };
 
-  const handleReject = (id: string) => {
+  const handleReject = async (id: string) => {
+    const token = localStorage.getItem('token');
+    try {
+      await fetch(`/api/approvals/${id}/reject`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {}
     toast('הדיווח נדחה', 'info');
     setApprovals(prev => prev.filter(p => p.id !== id));
     if (editingId === id) setEditingId(null);

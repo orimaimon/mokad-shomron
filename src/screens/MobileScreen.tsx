@@ -1,10 +1,35 @@
 import { useState } from 'react';
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtHM, elapsed } from '../hooks/useClock';
+import { toast } from '../components/Toast';
 
-export function MobileScreen({ data }) {
+export function MobileScreen({ data }: { data: { activeEvent: { startedAt: number }; log: { urgent?: boolean; t: string; text: string; src: string }[] } }) {
   const [tab, setTab] = useState('feed');
   const now = useNow();
+  const [reportText, setReportText] = useState('רכב לבן עם 3 נוסעים נצפה במהירות גבוהה ביציאה מהיישוב לכיוון ציר 55.');
+  const [sending, setSending] = useState(false);
+
+  const handleSubmitReport = async () => {
+    if (!reportText.trim()) return;
+    setSending(true);
+    try {
+      const res = await fetch('/api/approvals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ author: 'נטע פרץ', text: reportText }),
+      });
+      if (res.ok) {
+        toast('הדיווח נשלח לאישור מוקדן', 'success');
+        setReportText('');
+      } else {
+        toast('שגיאה בשליחת הדיווח', 'error');
+      }
+    } catch {
+      toast('שגיאת תקשורת', 'error');
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <div className="phone-stage">
@@ -80,7 +105,8 @@ export function MobileScreen({ data }) {
                   <textarea
                     className="textarea"
                     placeholder="מה ראית? פרט מיקום, אנשים, חריגים..."
-                    defaultValue='רכב לבן עם 3 נוסעים נצפה במהירות גבוהה ביציאה מהיישוב לכיוון ציר 55.'
+                    value={reportText}
+                    onChange={e => setReportText(e.target.value)}
                   />
                 </div>
                 <div className="field">
@@ -101,8 +127,13 @@ export function MobileScreen({ data }) {
                 <div style={{ padding: 10, background: 'rgba(245,165,36,.08)', border: '1px solid rgba(245,165,36,.3)', borderRadius: 6, fontSize: 11, color: '#ffd07a' }}>
                   <Icon name="Bell" /> הדיווח יישלח לאישור מוקדן לפני פרסום למסך
                 </div>
-                <button className="btn primary" style={{ justifyContent: 'center' }}>
-                  <Icon name="Send" /> שלח דיווח לאישור
+                <button
+                  className="btn primary"
+                  style={{ justifyContent: 'center' }}
+                  onClick={handleSubmitReport}
+                  disabled={sending || !reportText.trim()}
+                >
+                  <Icon name="Send" /> {sending ? 'שולח...' : 'שלח דיווח לאישור'}
                 </button>
               </div>
             )}

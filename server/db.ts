@@ -119,6 +119,16 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE
   );
+
+  CREATE TABLE IF NOT EXISTS approvals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    time TEXT,
+    author TEXT,
+    text TEXT,
+    scene TEXT,
+    urgent INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'pending'
+  );
 `);
 
 // Migrations are already handled by default values in CREATE TABLE above,

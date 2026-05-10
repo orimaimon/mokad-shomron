@@ -2,6 +2,24 @@
 
 ## [Unreleased] — 2026-05-10
 
+### Feature — Approvals System (מערכת אישורים)
+
+- Added `approvals` table — stores pending field reports with `time`, `author`, `text`, `scene`, `urgent`, `status`
+- `POST /api/approvals` — field reporter submits a report for dispatcher approval (no auth required)
+- `GET /api/approvals` — returns all pending approvals (auth required)
+- `POST /api/approvals/:id/approve` — publishes report to feed with optional text edit; marks approval as `approved`
+- `POST /api/approvals/:id/reject` — marks approval as `rejected`
+- **ManagementScreen** — approvals now fetched from real DB, polled every 5 seconds; approve/reject call real API endpoints instead of mutating local state only
+- **MobileScreen** — "שלח דיווח לאישור" button wired to `POST /api/approvals`; textarea is now controlled with loading state and toast feedback
+- Fixed `framer-motion` import → `motion/react` in `ManagementScreen.tsx` (`framer-motion` is not installed)
+
+### Architecture — Server Hardening
+
+- Added `morgan` request logging middleware (`dev` format)
+- Added global error handler — all unhandled route errors return `500` with Hebrew message instead of crashing
+
+---
+
 ### Fix — Wording
 
 - Changed "בתורנות" → "במשמרת" in the active shift banner dispatcher label

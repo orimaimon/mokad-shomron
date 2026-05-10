@@ -65,6 +65,16 @@ export interface DBActiveEvent {
   map_coords: string;
 }
 
+export interface DBApproval {
+  id: number;
+  time: string;
+  author: string;
+  text: string;
+  scene: string | null;
+  urgent: number;
+  status: string;
+}
+
 export interface DBShiftLog {
   id: number;
   manager_name: string;
@@ -170,6 +180,17 @@ export const ShiftEndSchema = z.object({
   dispatchers: z.array(z.string().min(1)).optional(),
 });
 
+export const ApprovalAddSchema = z.object({
+  author: z.string().min(1),
+  text: z.string().min(1),
+  scene: z.string().optional(),
+  urgent: z.boolean().optional(),
+});
+
+export const ApprovalApproveSchema = z.object({
+  text: z.string().min(1).optional(),
+});
+
 export const EvacSchema = z.object({
   event_id: z.string().min(1),
   who: z.string().min(1),
@@ -198,4 +219,6 @@ export type EmergencyUpdateBody = z.infer<typeof EmergencyUpdateSchema>;
 export type EmergencyCloseBody = z.infer<typeof EmergencyCloseSchema>;
 export type ShiftStartBody = z.infer<typeof ShiftStartSchema>;
 export type ShiftEndBody = z.infer<typeof ShiftEndSchema>;
+export type ApprovalAddBody = z.infer<typeof ApprovalAddSchema>;
+export type ApprovalApproveBody = z.infer<typeof ApprovalApproveSchema>;
 export type EvacBody = z.infer<typeof EvacSchema>;
