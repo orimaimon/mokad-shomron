@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtDate } from '../hooks/useClock';
-import { MokadData, RosterMember } from '../types';
+import { MokadData, RosterMember, RoutineIncident, DBRosterMember } from '../types';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from '../components/Toast';
@@ -18,12 +18,12 @@ function RosterUpdateModal({ person, onClose, onSave, onDelete }: { person: Rost
   const [personState, setPersonState] = useState(person.state || 'field');
   const [name, setName] = useState(person.name || '');
   const [role, setRole] = useState(person.role || '');
-  const [task, setTask] = useState((person as any).task || '');
-  const [replacement, setReplacement] = useState((person as any).replacement || '');
-  const [replacementPhone, setReplacementPhone] = useState((person as any).replacement_phone || '');
-  const [returnTime, setReturnTime] = useState((person as any).returnTime || '');
-  const [phone, setPhone] = useState((person as any).phone || '');
-  const [operationalPhone, setOperationalPhone] = useState((person as any).operational_phone || '');
+  const [task, setTask] = useState(person.task || '');
+  const [replacement, setReplacement] = useState(person.replacement || '');
+  const [replacementPhone, setReplacementPhone] = useState(person.replacement_phone || '');
+  const [returnTime, setReturnTime] = useState(person.returnTime || '');
+  const [phone, setPhone] = useState(person.phone || '');
+  const [operationalPhone, setOperationalPhone] = useState(person.operational_phone || '');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -58,7 +58,7 @@ function RosterUpdateModal({ person, onClose, onSave, onDelete }: { person: Rost
         }),
       });
       if (res.ok) {
-        onSave({ ...person, name, role, task, isOutOfSector: isOut, replacement, returnTime, phone, operational_phone: operationalPhone, state: isOut ? 'out' : personState } as any);
+        onSave({ ...person, name, role, task, isOutOfSector: isOut, replacement, returnTime, phone, operational_phone: operationalPhone, state: isOut ? 'out' : personState });
         toast('בעל התפקיד עודכן בהצלחה', 'success');
       } else {
         toast('שגיאה בעדכון בעל התפקיד', 'error');
@@ -165,7 +165,7 @@ function RosterUpdateModal({ person, onClose, onSave, onDelete }: { person: Rost
   );
 }
 
-function EditIncidentModal({ incident, onClose, onSave }: { incident: any, onClose: () => void, onSave: () => void }) {
+function EditIncidentModal({ incident, onClose, onSave }: { incident: RoutineIncident, onClose: () => void, onSave: () => void }) {
   const [form, setForm] = useState({
     type: incident.type || '',
     loc: incident.loc || incident.location || '',
@@ -402,7 +402,7 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
 
   const fetchRoster = () => {
     fetch('/api/roster').then(res => res.json()).then(data => {
-      const mapped = data.map((item: any) => ({
+      const mapped = (data as DBRosterMember[]).map(item => ({
         ...item,
         out: item.out_time,
         returnTime: item.return_time,
@@ -437,9 +437,9 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
     else if (incStatus === 'closed') items = items.filter(i => i.status === 'הסתיים' || closingIds.has(i.id));
     if (incSev) items = items.filter(i => (i.sev || i.severity) === incSev);
     if (incSort.key) {
-      items.sort((a: any, b: any) => {
-        const va = String(a[incSort.key] ?? '');
-        const vb = String(b[incSort.key] ?? '');
+      items.sort((a, b) => {
+        const va = String((a as Record<string, unknown>)[incSort.key] ?? '');
+        const vb = String((b as Record<string, unknown>)[incSort.key] ?? '');
         return incSort.asc ? va.localeCompare(vb, 'he') : vb.localeCompare(va, 'he');
       });
     }
@@ -447,10 +447,10 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
   }, [r.incidents, incSearch, incStatus, incSev, incSort, closingIds]);
 
   const filteredFeed = useMemo(() => {
-    const base = r.feed.filter((it: any) => !deletedIds.has(it.id));
+    const base = r.feed.filter(it => !deletedIds.has(it.id));
     if (!feedSearch) return base;
     const q = feedSearch.toLowerCase();
-    return base.filter((it: any) =>
+    return base.filter(it =>
       it.text?.toLowerCase().includes(q) || it.src?.toLowerCase().includes(q)
     );
   }, [r.feed, deletedIds, feedSearch]);
@@ -465,7 +465,7 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
     return base.filter(p =>
       p.name?.toLowerCase().includes(q) ||
       p.role?.toLowerCase().includes(q) ||
-      (p as any).task?.toLowerCase().includes(q)
+      p.task?.toLowerCase().includes(q)
     );
   }, [tab, inSector, outOfSector, rosterSearch]);
 
@@ -642,7 +642,7 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
       >
         <div className="panel-h">
           <h3>זרם עדכונים</h3>
-          {filteredFeed.length !== r.feed.filter((it: any) => !deletedIds.has(it.id)).length && (
+          {filteredFeed.length !== r.feed.filter(it => !deletedIds.has(it.id)).length && (
             <span className="tag" style={{ marginRight: 4 }}>{filteredFeed.length}</span>
           )}
         </div>
@@ -661,7 +661,7 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
         </div>
         <div className="panel-b" style={{ padding: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <div className="feed" style={{ flex: 1, overflow: 'auto' }}>
-            {filteredFeed.map((it: any, i: number) => (
+            {filteredFeed.map((it, i) => (
               <div className="item" key={it.id ?? i} style={{ position: 'relative' }}>
                 <div className="t mono">{it.t}</div>
                 <div className="body">
@@ -748,46 +748,45 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
                   <div style={{ padding: 16, color: 'var(--ink-4)', textAlign: 'center', fontSize: 13 }}>אין תוצאות</div>
                 )}
                 {filteredRoster.map((person, i) => {
-                  const p = person as any;
                   return (
                     <div key={i} style={{ borderBottom: '1px solid var(--border-1)' }}>
                       {/* main row */}
                       <div
-                        className={cn('r', p.isOutOfSector && 'out-row')}
+                        className={cn('r', person.isOutOfSector && 'out-row')}
                         onClick={() => setEditingPerson(person)}
                         style={{ cursor: 'pointer', borderBottom: 'none' }}
                       >
-                        <div className="av" style={p.isOutOfSector ? { background: 'var(--red)', color: 'white' } : {}}>
-                          {p.name.split(' ').map((s: string) => s[0]).join('')}
+                        <div className="av" style={person.isOutOfSector ? { background: 'var(--red)', color: 'white' } : {}}>
+                          {person.name.split(' ').map((s: string) => s[0]).join('')}
                         </div>
                         <div style={{ flex: 1 }}>
                           <div className="name">
-                            {p.name}
-                            {p.isOutOfSector && <span className="tag sm red" style={{ marginRight: 8 }}>מחוץ לגזרה</span>}
+                            {person.name}
+                            {person.isOutOfSector && <span className="tag sm red" style={{ marginRight: 8 }}>מחוץ לגזרה</span>}
                           </div>
                           <div className="meta">
-                            {p.role} · {p.isOutOfSector ? 'יציאה מהגזרה' : p.task}
+                            {person.role} · {person.isOutOfSector ? 'יציאה מהגזרה' : person.task}
                           </div>
-                          {(p.phone || p.operational_phone) && (
+                          {(person.phone || person.operational_phone) && (
                             <div className="meta mono" style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 2 }}>
-                              {p.phone && <span>{p.phone}</span>}
-                              {p.phone && p.operational_phone && <span style={{ margin: '0 4px' }}>·</span>}
-                              {p.operational_phone && <span style={{ color: 'var(--brand)' }}>{p.operational_phone}</span>}
+                              {person.phone && <span>{person.phone}</span>}
+                              {person.phone && person.operational_phone && <span style={{ margin: '0 4px' }}>·</span>}
+                              {person.operational_phone && <span style={{ color: 'var(--brand)' }}>{person.operational_phone}</span>}
                             </div>
                           )}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
-                          <span className={cn('st', p.state)}>
-                            {p.state === 'field' ? 'בשטח' : p.state === 'brief' ? 'תדריך' : p.state === 'return' ? 'בחזרה' : 'לא זמין'}
+                          <span className={cn('st', person.state)}>
+                            {person.state === 'field' ? 'בשטח' : person.state === 'brief' ? 'תדריך' : person.state === 'return' ? 'בחזרה' : 'לא זמין'}
                           </span>
-                          <span className="meta">מ- {p.out}</span>
-                          {p.isOutOfSector && p.return_time && (
-                            <span className="meta mono" style={{ fontSize: 10 }}>חזרה: {p.return_time}</span>
+                          <span className="meta">מ- {person.out}</span>
+                          {person.isOutOfSector && person.return_time && (
+                            <span className="meta mono" style={{ fontSize: 10 }}>חזרה: {person.return_time}</span>
                           )}
                         </div>
                       </div>
                       {/* replacement sub-row */}
-                      {p.isOutOfSector && p.replacement && (
+                      {person.isOutOfSector && person.replacement && (
                         <div style={{
                           display: 'flex', alignItems: 'center', gap: 10,
                           padding: '6px 12px 8px 12px',
@@ -796,10 +795,10 @@ export function RoutineScreen({ data, onOpenEmergency }: RoutineScreenProps) {
                         }}>
                           <Icon name="User" style={{ width: 13, color: 'var(--ink-4)', flexShrink: 0 }} />
                           <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>מחליף:</span>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-2)' }}>{p.replacement}</span>
-                          {p.replacement_phone && (
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-2)' }}>{person.replacement}</span>
+                          {person.replacement_phone && (
                             <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)', marginRight: 'auto' }}>
-                              {p.replacement_phone}
+                              {person.replacement_phone}
                             </span>
                           )}
                         </div>

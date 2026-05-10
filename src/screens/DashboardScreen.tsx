@@ -2,10 +2,24 @@ import { useState, useEffect } from 'react';
 import { Icon } from '../components/Icons';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { RosterMember } from '../types';
+import { RosterMember, DBRosterMember, DBIncident } from '../types';
+
+interface DashboardIncident {
+  id: number;
+  type: string;
+  loc: string;
+  time: string;
+  status: string;
+  sev: 'high' | 'mid' | 'low';
+}
+
+interface DashboardData {
+  incidents: DashboardIncident[];
+  alerts: number;
+}
 
 export function DashboardScreen() {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [roster, setRoster] = useState<RosterMember[]>([]);
   const [time, setTime] = useState(new Date());
 
@@ -16,16 +30,16 @@ export function DashboardScreen() {
         fetch('/api/incidents').then(r => r.json()),
       ]);
 
-      setRoster(resRoster.map((item: any) => ({
+      setRoster((resRoster as DBRosterMember[]).map((item) => ({
         ...item,
         out: item.out_time,
         returnTime: item.return_time,
         isOutOfSector: !!item.is_out_of_sector
       })));
 
-      const active = resInc.filter((i: any) => i.status !== 'הסתיים');
+      const active = (resInc as DBIncident[]).filter(i => i.status !== 'הסתיים');
       setData({
-        incidents: active.map((i: any) => ({
+        incidents: active.map(i => ({
           id: i.id,
           type: i.type,
           loc: i.location,
@@ -119,7 +133,7 @@ export function DashboardScreen() {
           </div>
           <div className="incident-list">
             <AnimatePresence>
-              {data?.incidents.map((inc: any) => (
+              {data?.incidents.map((inc) => (
                 <motion.div 
                   initial={{ x: 20, opacity: 0 }} 
                   animate={{ x: 0, opacity: 1 }}

@@ -12,7 +12,7 @@ import { AdminScreen } from './screens/AdminScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
-import { MokadData } from './types';
+import { MokadData, User, NavItem, OpenEventFormData, DBFeedItem, DBIncident, DBRosterMember, DBActiveEventRaw } from './types';
 import { ToastProvider, toast, confirmDialog } from './components/Toast';
 import './App.css';
 
@@ -28,7 +28,7 @@ const NAV_ITEMS = [
   { k: 'admin', label: 'ניהול מערכת', icon: 'Shield', admin: true },
 ];
 
-function TopBar({ screen, onScreen, emergency, user, onLogout }: { screen: string, onScreen: (s: string) => void, emergency: boolean, user: any, onLogout: () => void }) {
+function TopBar({ screen, onScreen, emergency, user, onLogout }: { screen: string, onScreen: (s: string) => void, emergency: boolean, user: User | null, onLogout: () => void }) {
   const now = useNow();
   return (
     <div className="topbar">
@@ -38,7 +38,7 @@ function TopBar({ screen, onScreen, emergency, user, onLogout }: { screen: strin
         <small>· שו"ב v2.5</small>
       </div>
       <nav className="nav">
-        {NAV_ITEMS.map((it: any) => {
+        {NAV_ITEMS.map((it: NavItem) => {
           if (it.admin && user?.role !== 'admin') return null;
           return (
             <a key={it.k} className={cn(screen === it.k && 'on', it.cls)} onClick={() => onScreen(it.k)}>
@@ -71,7 +71,7 @@ function TopBar({ screen, onScreen, emergency, user, onLogout }: { screen: strin
   );
 }
 
-function OpenEventModal({ onConfirm, onClose }: { onConfirm: (data: any) => Promise<void> | void, onClose: () => void }) {
+function OpenEventModal({ onConfirm, onClose }: { onConfirm: (data: OpenEventFormData) => Promise<void> | void, onClose: () => void }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     type: 'פח"ע - ישוב',
@@ -190,16 +190,16 @@ function OpenEventModal({ onConfirm, onClose }: { onConfirm: (data: any) => Prom
 }
 
 function App() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [emergencyActive, setEmergencyActive] = useState(false);
   const [screen, setScreen] = useState('routine');
   const [showOpenModal, setShowOpenModal] = useState(false);
-  
-  const [activeEvent, setActiveEvent] = useState<any>(null);
-  const [incidents, setIncidents] = useState<any[]>([]);
-  const [feed, setFeed] = useState<any[]>([]);
-  const [roster, setRoster] = useState<any[]>([]);
+
+  const [activeEvent, setActiveEvent] = useState<DBActiveEventRaw | null>(null);
+  const [incidents, setIncidents] = useState<DBIncident[]>([]);
+  const [feed, setFeed] = useState<DBFeedItem[]>([]);
+  const [roster, setRoster] = useState<DBRosterMember[]>([]);
 
   // Auth check
   useEffect(() => {
@@ -285,7 +285,7 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [token]);
 
-  const handleLogin = (token: string, userData: any) => {
+  const handleLogin = (token: string, userData: User) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
     setToken(token);
@@ -308,7 +308,7 @@ function App() {
 
   const handleOpenEmergency = () => setShowOpenModal(true);
   
-  const confirmOpenEmergency = async (formData: any) => {
+  const confirmOpenEmergency = async (formData: OpenEventFormData) => {
     try {
       const res = await fetch('/api/emergency/start', {
         method: 'POST',
@@ -350,7 +350,7 @@ function App() {
     snapshotAt: activeEvent.snapshot_at,
   } : data.activeEvent;
 
-  const mappedFeed = feed.map((it: any) => ({ ...it, t: it.time }));
+  const mappedFeed = feed.map(it => ({ ...it, t: it.time }));
 
   // Construct data object for screens
   const fullData: MokadData = {

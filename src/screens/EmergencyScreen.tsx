@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtTime, elapsed } from '../hooks/useClock';
-import { MokadData } from '../types';
+import { MokadData, ActiveEvent } from '../types';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
 import { toast } from '../components/Toast';
@@ -39,7 +39,7 @@ function CasualtyCard({ label, value, color, wide = false }: {
   return (
     <div
       className={cn('cas-card', active && 'active', wide && 'wide')}
-      style={active ? { '--cas-col': color, '--cas-bg': color + '14' } as any : {}}
+      style={active ? { '--cas-col': color, '--cas-bg': color + '14' } as React.CSSProperties : {}}
     >
       <div className="num">{value}</div>
       <div className="lbl">{label}</div>
@@ -50,7 +50,7 @@ function CasualtyCard({ label, value, color, wide = false }: {
 // ── UpdateSituationModal ──────────────────────────────────────────────────
 
 function UpdateSituationModal({ event, onClose, onSave }: {
-  event: any; onClose: () => void; onSave: () => void;
+  event: ActiveEvent; onClose: () => void; onSave: () => void;
 }) {
   const [formData, setFormData] = useState({
     dead: event.dead || 0,
@@ -214,7 +214,7 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
   const [reportText, setReportText] = useState('');
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
 
-  const eventFeed = data.log.filter((it: any) =>
+  const eventFeed = data.log.filter(it =>
     !deletedIds.has(it.id) && (!it.event_id || it.event_id === ev.id)
   );
 
@@ -327,7 +327,7 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
                 <tr><th>נפגעים</th><th>גורם</th><th>יעד</th><th>מצב</th></tr>
               </thead>
               <tbody>
-                {(ev.evac || []).map((e: any, i: number) => (
+                {(ev.evac || []).map((e, i) => (
                   <tr key={i}>
                     <td>{e.who}</td>
                     <td>
@@ -406,11 +406,11 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
           <div className="panel-h">
             <h3>כוחות פועלים</h3>
             <div className="spacer" />
-            <span className="tag">{(ev.forces || []).reduce((s: number, f: any) => s + f.count, 0)} סה"כ</span>
+            <span className="tag">{(ev.forces || []).reduce((s, f) => s + f.count, 0)} סה"כ</span>
           </div>
           <div className="panel-b" style={{ padding: 0 }}>
             <div className="roster" style={{ maxHeight: 160, overflow: 'auto' }}>
-              {(ev.forces || []).map((f: any, i: number) => (
+              {(ev.forces || []).map((f, i) => (
                 <div className="r" key={i}>
                   <div className="av"><Icon name={f.icon || 'Shield'} /></div>
                   <div><div className="name">{f.name}</div></div>
@@ -431,7 +431,7 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
           </div>
           <div className="panel-b" style={{ padding: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div className="feed" style={{ flex: 1, overflow: 'auto' }}>
-              {eventFeed.map((it: any, i: number) => (
+              {eventFeed.map((it, i) => (
                 <div key={it.id ?? i} className={cn('item', it.urgent && 'urgent', it.system && 'system')} style={{ position: 'relative' }}>
                   <div className="t mono">{it.t}</div>
                   <div className="body">

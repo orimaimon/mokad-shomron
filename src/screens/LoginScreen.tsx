@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Icon } from '../components/Icons';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
+import { User } from '../types';
 
 interface LoginScreenProps {
-  onLogin: (token: string, user: any) => void;
+  onLogin: (token: string, user: User) => void;
 }
 
 export function LoginScreen({ onLogin }: LoginScreenProps) {
@@ -29,8 +30,8 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
       if (!res.ok) throw new Error(data.error || 'Login failed');
 
       onLogin(data.token, data.user);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'שגיאה');
     } finally {
       setLoading(false);
     }

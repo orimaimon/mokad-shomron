@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtHM } from '../hooks/useClock';
-import { MokadData } from '../types';
+import { MokadData, ApprovalRequest } from '../types';
 import { toast } from '../components/Toast';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -50,7 +50,7 @@ export function ManagementScreen({ data }: { data: MokadData }) {
     }
   };
 
-  const handleApprove = async (a: any) => {
+  const handleApprove = async (a: ApprovalRequest) => {
     const textToApprove = editingId === a.id ? editedText : a.text;
     if (!textToApprove.trim()) return;
     try {

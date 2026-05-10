@@ -11,6 +11,11 @@ import cors from 'cors';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const JWT_SECRET = process.env.JWT_SECRET || 'mokad-secret-key-2024';
 
+interface DBUser { id: number; email: string; password: string; name: string; role: string; }
+interface JWTPayload { id: number; role: string; name: string; }
+interface DBActiveEventRow { id: string; type: string; location: string; grid: string; scene_name: string; started_at: number; snapshot_at: string; description: string; is_active: number; dead: number; critical: number; serious: number; light: number; untreated: number; missing: number; trapped: number; map_coords: string; }
+interface ReplacementRow { name: string; }
+
 // Initialize Database
 const db = new Database('mokad.db');
 db.pragma('journal_mode = WAL');
@@ -157,7 +162,7 @@ const isAdmin = (req: express.Request, res: express.Response, next: express.Next
   if (!authHeader) return res.status(401).json({ error: 'Missing token' });
   try {
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
     if (decoded.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
     next();
   } catch (err) {
@@ -175,7 +180,7 @@ async function startServer() {
   // Auth
   app.post('/api/login', (req, res) => {
     const { email, password } = req.body;
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as DBUser | undefined;
 
     if (!user || !bcrypt.compareSync(password, user.password)) {
       return res.status(401).json({ error: 'אימייל או סיסמה שגויים' });
@@ -240,7 +245,7 @@ async function startServer() {
 
   app.get('/api/replacements', (req, res) => {
     const items = db.prepare('SELECT name FROM replacements ORDER BY name ASC').all();
-    res.json(items.map((i: any) => i.name));
+    res.json((items as ReplacementRow[]).map(i => i.name));
   });
 
   // Incidents & Feed
@@ -295,7 +300,7 @@ async function startServer() {
 
   // Emergency Management
   app.get('/api/emergency/active', (req, res) => {
-    const event = db.prepare('SELECT * FROM active_event WHERE is_active = 1').get() as any;
+    const event = db.prepare('SELECT * FROM active_event WHERE is_active = 1').get() as DBActiveEventRow | undefined;
     if (!event) return res.json(null);
 
     const forces = db.prepare('SELECT * FROM event_forces WHERE event_id = ?').all(event.id);
@@ -380,7 +385,7 @@ async function startServer() {
   });
 
   app.get('/api/reports/event/:id', (req, res) => {
-    const event = db.prepare('SELECT * FROM active_event WHERE id = ?').get(req.params.id) as any;
+    const event = db.prepare('SELECT * FROM active_event WHERE id = ?').get(req.params.id) as DBActiveEventRow | undefined;
     if (!event) return res.status(404).json({ error: 'Not found' });
     const forces = db.prepare('SELECT * FROM event_forces WHERE event_id = ?').all(event.id);
     const evac = db.prepare('SELECT * FROM event_evac WHERE event_id = ?').all(event.id);
@@ -398,7 +403,7 @@ async function startServer() {
     const { email, password, name, role } = req.body;
     if (!email || !name) return res.status(400).json({ error: 'Missing fields' });
 
-    const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
+    const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as DBUser | undefined;
     if (existing) {
       if (password) {
         const hash = bcrypt.hashSync(password, 10);

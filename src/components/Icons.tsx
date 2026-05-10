@@ -1,29 +1,30 @@
-import { 
-  Activity, 
-  Shield, 
-  Siren, 
-  Map as MapIcon, 
-  MapPin, 
-  Camera, 
-  Plus, 
-  Check, 
-  X, 
-  Edit3, 
-  Bell, 
-  Search, 
-  Filter, 
-  FileText, 
-  Download, 
-  User, 
-  Truck, 
-  Hospital, 
-  Clock, 
-  Send, 
-  Image as ImageIcon, 
-  Wifi, 
-  Settings, 
+import {
+  Activity,
+  Shield,
+  Siren,
+  Map as MapIcon,
+  MapPin,
+  Camera,
+  Plus,
+  Check,
+  X,
+  Edit3,
+  Bell,
+  Search,
+  Filter,
+  FileText,
+  Download,
+  User,
+  Truck,
+  Hospital,
+  Clock,
+  Send,
+  Image as ImageIcon,
+  Wifi,
+  Settings,
   Archive,
-  Info
+  Info,
+  type LucideProps
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -54,7 +55,7 @@ const iconMap = {
   Archive: Archive,
 };
 
-export function Icon({ name, lg, className = '', ...rest }: { name: string, lg?: boolean, className?: string, [key: string]: any }) {
+export function Icon({ name, lg, className = '', ...rest }: { name: string; lg?: boolean; className?: string } & Omit<LucideProps, 'ref'>) {
   const LucideIcon = iconMap[name as keyof typeof iconMap] || Info;
   return (
     <LucideIcon 

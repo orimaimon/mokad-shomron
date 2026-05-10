@@ -1,3 +1,89 @@
+// ── Shared domain types ───────────────────────────────────────────────────
+
+export interface User {
+  name: string;
+  email: string;
+  role: 'admin' | 'dispatcher';
+}
+
+export interface NavItem {
+  k: string;
+  label: string;
+  icon: string;
+  cls?: string;
+  admin?: boolean;
+}
+
+export interface OpenEventFormData {
+  type: string;
+  scene_name: string;
+  location: string;
+  grid: string;
+  description: string;
+}
+
+// ── Raw DB types (snake_case, as returned by the API) ─────────────────────
+
+export interface DBRosterMember {
+  id: number;
+  name: string;
+  role: string;
+  task: string;
+  out_time: string;
+  return_time: string;
+  reason: string;
+  state: 'field' | 'brief' | 'return' | 'out';
+  is_out_of_sector: number;
+  replacement: string;
+  replacement_phone: string;
+  phone: string;
+  operational_phone: string;
+}
+
+export interface DBFeedItem {
+  id: number;
+  time: string;
+  src: string;
+  text: string;
+  urgent: number;
+  system: number;
+  event_id: string | null;
+}
+
+export interface DBIncident {
+  id: number;
+  type: string;
+  location: string;
+  status: string;
+  severity: string;
+  created_at: string;
+}
+
+export interface DBActiveEventRaw {
+  id: string;
+  type: string;
+  location: string;
+  grid: string;
+  scene_name: string;
+  started_at: number;
+  snapshot_at: string;
+  description: string;
+  is_active: number;
+  dead: number;
+  critical: number;
+  serious: number;
+  light: number;
+  untreated: number;
+  missing: number;
+  trapped: number;
+  map_coords: string;
+  forces: Force[];
+  evac: Evacuation[];
+  media: unknown[];
+}
+
+// ── Frontend mapped types ─────────────────────────────────────────────────
+
 export interface CasualtyData {
   dead: number;
   critical: number;
@@ -30,21 +116,33 @@ export interface ActiveEvent {
   location: string;
   grid: string;
   sceneName: string;
+  scene_name?: string;
   startedAt: number;
+  started_at?: number;
   snapshotAt: string;
-  casualties: CasualtyData;
-  missing: MissingData;
+  snapshot_at?: string;
+  description: string;
   forces: Force[];
   evac: Evacuation[];
-  description: string;
+  dead: number;
+  critical: number;
+  serious: number;
+  light: number;
+  untreated: number;
+  missing: number;
+  trapped: number;
+  map_coords?: string;
 }
 
 export interface LogEntry {
+  id: number;
+  time: string;
   t: string;
   src: string;
   text: string;
-  urgent?: boolean;
-  system?: boolean;
+  urgent?: number | boolean;
+  system?: number | boolean;
+  event_id?: string | null;
 }
 
 export interface ApprovalRequest {
@@ -58,12 +156,15 @@ export interface ApprovalRequest {
 }
 
 export interface RoutineIncident {
-  id: string;
-  t: string;
+  id: number;
   type: string;
-  loc: string;
+  location: string;
   status: string;
-  sev: 'amber' | 'green' | 'red' | 'blue';
+  severity: string;
+  created_at: string;
+  t: string;
+  loc: string;
+  sev: string;
 }
 
 export interface RosterMember {
@@ -73,10 +174,15 @@ export interface RosterMember {
   task: string;
   out: string;
   returnTime?: string;
+  return_time?: string;
   reason?: string;
   state: 'field' | 'brief' | 'return' | 'out';
   isOutOfSector?: boolean;
+  is_out_of_sector?: number;
   replacement?: string;
+  replacement_phone?: string;
+  phone?: string;
+  operational_phone?: string;
 }
 
 export interface RoutineMetrics {

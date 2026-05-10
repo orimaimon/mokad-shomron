@@ -1,13 +1,64 @@
 import { useState, useEffect, useRef } from 'react';
 import { Icon } from '../components/Icons';
 import { cn } from '../lib/utils';
-import { MokadData } from '../types';
+import { MokadData, DBRosterMember, DBIncident, DBFeedItem, Force, Evacuation } from '../types';
 
 type ReportType = 'daily' | 'event' | 'roster';
 
+interface ReportHeaderProps {
+  title: string;
+  subtitle?: string;
+  date: string;
+  generatedAt: string;
+}
+
+interface DailyReportData {
+  reportKind: 'daily' | 'roster';
+  generated_at: string;
+  date: string;
+  roster: DBRosterMember[];
+  incidents: DBIncident[];
+  feed: DBFeedItem[];
+}
+
+interface EventReportData {
+  reportKind: 'event';
+  id: string;
+  type: string;
+  location: string;
+  grid: string;
+  scene_name: string;
+  started_at: number;
+  snapshot_at: string;
+  description: string;
+  is_active: number;
+  dead: number;
+  critical: number;
+  serious: number;
+  light: number;
+  untreated: number;
+  missing: number;
+  trapped: number;
+  map_coords?: string;
+  forces: Force[];
+  evac: Evacuation[];
+  feed: DBFeedItem[];
+}
+
+type ReportData = DailyReportData | EventReportData;
+
+interface ArchivedEvent {
+  id: string;
+  type: string;
+  location: string;
+  scene_name: string;
+  started_at: number;
+  is_active: number;
+}
+
 // ── Report content components ─────────────────────────────────────────────
 
-function ReportHeader({ title, subtitle, date, generatedAt }: any) {
+function ReportHeader({ title, subtitle, date, generatedAt }: ReportHeaderProps) {
   return (
     <div className="rp-header">
       <div>
@@ -42,10 +93,10 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── Daily Report ──────────────────────────────────────────────────────────
 
-function DailyReportContent({ data }: { data: any }) {
-  const inSector = data.roster.filter((r: any) => !r.is_out_of_sector);
-  const outOfSector = data.roster.filter((r: any) => r.is_out_of_sector);
-  const openInc = data.incidents.filter((i: any) => i.status !== 'הסתיים');
+function DailyReportContent({ data }: { data: DailyReportData }) {
+  const inSector = data.roster.filter(r => !r.is_out_of_sector);
+  const outOfSector = data.roster.filter(r => r.is_out_of_sector);
+  const openInc = data.incidents.filter(i => i.status !== 'הסתיים');
 
   return (
     <>
@@ -59,7 +110,7 @@ function DailyReportContent({ data }: { data: any }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 20, padding: '12px 0', borderBottom: '1px solid #ddd' }}>
         {[
           { l: 'בעלי תפקידים סה"כ', v: data.roster.length },
-          { l: 'בשטח', v: inSector.filter((r: any) => r.state === 'field').length },
+          { l: 'בשטח', v: inSector.filter(r => r.state === 'field').length },
           { l: 'מחוץ לגזרה', v: outOfSector.length },
           { l: 'אירועים פתוחים', v: openInc.length },
         ].map(s => (
@@ -75,7 +126,7 @@ function DailyReportContent({ data }: { data: any }) {
       <table>
         <thead><tr><th>שם</th><th>תפקיד</th><th>משימה</th><th>מצב</th><th>טלפון</th><th>טלפון מבצעי</th></tr></thead>
         <tbody>
-          {data.roster.map((r: any) => (
+          {data.roster.map(r => (
             <tr key={r.id}>
               <td style={{ fontWeight: 600 }}>{r.name}</td>
               <td>{r.role}</td>
@@ -95,7 +146,7 @@ function DailyReportContent({ data }: { data: any }) {
           <table>
             <thead><tr><th>שם</th><th>תפקיד</th><th>מחליף</th><th>טלפון מחליף</th><th>זמן חזרה משוער</th></tr></thead>
             <tbody>
-              {outOfSector.map((r: any) => (
+              {outOfSector.map(r => (
                 <tr key={r.id}>
                   <td style={{ fontWeight: 600 }}>{r.name}</td>
                   <td>{r.role}</td>
@@ -117,7 +168,7 @@ function DailyReportContent({ data }: { data: any }) {
           <table>
             <thead><tr><th>שעה</th><th>סוג</th><th>מיקום</th><th>סטטוס</th><th>חומרה</th></tr></thead>
             <tbody>
-              {data.incidents.map((i: any) => (
+              {data.incidents.map(i => (
                 <tr key={i.id}>
                   <td style={{ fontFamily: 'monospace' }}>{new Date(i.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</td>
                   <td>{i.type}</td>
@@ -137,7 +188,7 @@ function DailyReportContent({ data }: { data: any }) {
           <table>
             <thead><tr><th>שעה</th><th>מקור</th><th>תוכן</th></tr></thead>
             <tbody>
-              {data.feed.slice(0, 30).map((f: any) => (
+              {data.feed.slice(0, 30).map(f => (
                 <tr key={f.id}>
                   <td style={{ fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{f.time}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{f.src}</td>
@@ -156,7 +207,7 @@ function DailyReportContent({ data }: { data: any }) {
 
 // ── Emergency Event Report ────────────────────────────────────────────────
 
-function EventReportContent({ data }: { data: any }) {
+function EventReportContent({ data }: { data: EventReportData }) {
   const start = data.started_at ? new Date(data.started_at) : null;
   const startStr = start ? start.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
   const totalCas = (data.dead || 0) + (data.critical || 0) + (data.serious || 0) + (data.light || 0) + (data.untreated || 0);
@@ -215,7 +266,7 @@ function EventReportContent({ data }: { data: any }) {
           <table>
             <thead><tr><th>נפגעים</th><th>גורם מפנה</th><th>יעד</th><th>מצב</th></tr></thead>
             <tbody>
-              {data.evac.map((e: any, i: number) => (
+              {data.evac.map((e, i) => (
                 <tr key={i}><td>{e.who}</td><td>{e.by}</td><td>{e.to}</td><td>{e.state}</td></tr>
               ))}
             </tbody>
@@ -229,7 +280,7 @@ function EventReportContent({ data }: { data: any }) {
           <table>
             <thead><tr><th>כוח</th><th>כמות</th></tr></thead>
             <tbody>
-              {data.forces.map((f: any, i: number) => (
+              {data.forces.map((f, i) => (
                 <tr key={i}><td>{f.name}</td><td>{f.count}</td></tr>
               ))}
             </tbody>
@@ -244,7 +295,7 @@ function EventReportContent({ data }: { data: any }) {
           <table>
             <thead><tr><th>שעה</th><th>מקור</th><th>דיווח</th></tr></thead>
             <tbody>
-              {data.feed.map((f: any) => (
+              {data.feed.map(f => (
                 <tr key={f.id}>
                   <td style={{ fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{f.time}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{f.src}</td>
@@ -263,8 +314,8 @@ function EventReportContent({ data }: { data: any }) {
 
 // ── Roster Report ─────────────────────────────────────────────────────────
 
-function RosterReportContent({ data }: { data: any }) {
-  const outOfSector = data.roster.filter((r: any) => r.is_out_of_sector);
+function RosterReportContent({ data }: { data: DailyReportData }) {
+  const outOfSector = data.roster.filter(r => r.is_out_of_sector);
   return (
     <>
       <ReportHeader
@@ -279,7 +330,7 @@ function RosterReportContent({ data }: { data: any }) {
           <tr><th>שם</th><th>תפקיד</th><th>משימה</th><th>מצב</th><th>טלפון</th><th>טלפון מבצעי</th></tr>
         </thead>
         <tbody>
-          {data.roster.map((r: any) => (
+          {data.roster.map(r => (
             <tr key={r.id} style={{ background: r.is_out_of_sector ? '#fff3f3' : undefined }}>
               <td style={{ fontWeight: 600 }}>{r.name}</td>
               <td>{r.role}</td>
@@ -300,7 +351,7 @@ function RosterReportContent({ data }: { data: any }) {
           <table>
             <thead><tr><th>שם</th><th>תפקיד</th><th>מחליף</th><th>טלפון מחליף</th><th>זמן חזרה</th></tr></thead>
             <tbody>
-              {outOfSector.map((r: any) => (
+              {outOfSector.map(r => (
                 <tr key={r.id}>
                   <td style={{ fontWeight: 600 }}>{r.name}</td>
                   <td>{r.role}</td>
@@ -333,13 +384,13 @@ function Signature() {
 
 // ── Print wrapper (hidden on screen, shown during print) ──────────────────
 
-function PrintWrap({ data }: { data: any }) {
+function PrintWrap({ data }: { data: ReportData }) {
   return (
     <div className="print-wrap">
       <div className="report-paper" style={{ background: 'none', padding: 0 }}>
-        {data.type === 'daily' && <DailyReportContent data={data} />}
-        {data.type === 'event' && <EventReportContent data={data} />}
-        {data.type === 'roster' && <RosterReportContent data={data} />}
+        {data.reportKind === 'daily' && <DailyReportContent data={data} />}
+        {data.reportKind === 'event' && <EventReportContent data={data} />}
+        {data.reportKind === 'roster' && <RosterReportContent data={data} />}
       </div>
     </div>
   );
@@ -350,9 +401,9 @@ function PrintWrap({ data }: { data: any }) {
 export function ArchiveScreen({ data: _data }: { data: MokadData }) {
   const [tab, setTab] = useState<'generate' | 'archive'>('generate');
   const [reportType, setReportType] = useState<ReportType>('daily');
-  const [reportData, setReportData] = useState<any>(null);
+  const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<ArchivedEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState('');
   const [archiveSearch, setArchiveSearch] = useState('');
   const [archiveStatus, setArchiveStatus] = useState('');
@@ -366,11 +417,11 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
     try {
       if (reportType === 'daily' || reportType === 'roster') {
         const res = await fetch('/api/reports/daily');
-        setReportData({ type: reportType, ...(await res.json()) });
+        setReportData({ reportKind: reportType, ...(await res.json()) });
       } else if (reportType === 'event') {
         if (!selectedEventId) return;
         const res = await fetch(`/api/reports/event/${selectedEventId}`);
-        setReportData({ type: 'event', ...(await res.json()) });
+        setReportData({ reportKind: 'event', ...(await res.json()) });
       }
     } finally {
       setLoading(false);
@@ -388,7 +439,7 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
     setTab('generate');
     try {
       const res = await fetch(`/api/reports/event/${id}`);
-      setReportData({ type: 'event', ...(await res.json()) });
+      setReportData({ reportKind: 'event', ...(await res.json()) });
     } finally {
       setLoading(false);
     }
@@ -533,9 +584,9 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
             <div className="panel-h no-print">
               <Icon name="Doc" />
               <h3>
-                {reportData.type === 'daily' && 'דוח שגרה יומי'}
-                {reportData.type === 'event' && `דוח אירוע · ${reportData.id}`}
-                {reportData.type === 'roster' && 'דוח כוח אדם'}
+                {reportData.reportKind === 'daily' && 'דוח שגרה יומי'}
+                {reportData.reportKind === 'event' && `דוח אירוע · ${reportData.id}`}
+                {reportData.reportKind === 'roster' && 'דוח כוח אדם'}
               </h3>
               <div className="spacer" />
               <button className="btn brand" onClick={handlePrint} style={{ gap: 8 }}>
@@ -544,9 +595,9 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
             </div>
             <div className="panel-b" style={{ flex: 1, overflow: 'auto', padding: 0 }}>
               <div className="report-paper">
-                {reportData.type === 'daily' && <DailyReportContent data={reportData} />}
-                {reportData.type === 'event' && <EventReportContent data={reportData} />}
-                {reportData.type === 'roster' && <RosterReportContent data={reportData} />}
+                {reportData.reportKind === 'daily' && <DailyReportContent data={reportData} />}
+                {reportData.reportKind === 'event' && <EventReportContent data={reportData} />}
+                {reportData.reportKind === 'roster' && <RosterReportContent data={reportData} />}
               </div>
             </div>
           </>
