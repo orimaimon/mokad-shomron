@@ -28,7 +28,10 @@ db.exec(`
     replacement TEXT,
     phone TEXT DEFAULT '',
     operational_phone TEXT DEFAULT '',
-    replacement_phone TEXT DEFAULT ''
+    replacement_phone TEXT DEFAULT '',
+    version INTEGER DEFAULT 1,
+    is_deleted INTEGER DEFAULT 0,
+    deleted_at TEXT
   );
 
   CREATE TABLE IF NOT EXISTS replacements (
@@ -42,7 +45,11 @@ db.exec(`
     location TEXT,
     status TEXT,
     severity TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT,
+    version INTEGER DEFAULT 1,
+    is_deleted INTEGER DEFAULT 0,
+    deleted_at TEXT
   );
 
   CREATE TABLE IF NOT EXISTS feed (
@@ -52,7 +59,9 @@ db.exec(`
     text TEXT,
     urgent INTEGER DEFAULT 0,
     system INTEGER DEFAULT 0,
-    event_id TEXT
+    event_id TEXT,
+    is_deleted INTEGER DEFAULT 0,
+    deleted_at TEXT
   );
 
   CREATE TABLE IF NOT EXISTS active_event (
@@ -72,7 +81,8 @@ db.exec(`
     untreated INTEGER DEFAULT 0,
     missing INTEGER DEFAULT 0,
     trapped INTEGER DEFAULT 0,
-    map_coords TEXT DEFAULT ''
+    map_coords TEXT DEFAULT '',
+    version INTEGER DEFAULT 1
   );
 
   CREATE TABLE IF NOT EXISTS event_forces (
@@ -89,7 +99,8 @@ db.exec(`
     who TEXT,
     "by" TEXT,
     "to" TEXT,
-    state TEXT
+    state TEXT,
+    is_deleted INTEGER DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS media (
@@ -129,6 +140,28 @@ db.exec(`
     urgent INTEGER DEFAULT 0,
     status TEXT DEFAULT 'pending'
   );
+
+  -- Audit Trail table
+  CREATE TABLE IF NOT EXISTS action_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    user_name TEXT,
+    action_type TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    previous_state TEXT,
+    new_state TEXT,
+    metadata TEXT,
+    ip_address TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- Performance indexes (on columns that exist in the original schema)
+  CREATE INDEX IF NOT EXISTS idx_action_logs_entity ON action_logs(entity_type, entity_id);
+  CREATE INDEX IF NOT EXISTS idx_action_logs_time ON action_logs(created_at);
+  CREATE INDEX IF NOT EXISTS idx_action_logs_user ON action_logs(user_id);
+  CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status);
+  CREATE INDEX IF NOT EXISTS idx_incidents_created ON incidents(created_at);
 `);
 
 // Migrations are already handled by default values in CREATE TABLE above,
@@ -138,6 +171,28 @@ try { db.exec('ALTER TABLE roster ADD COLUMN phone TEXT DEFAULT ""'); } catch {}
 try { db.exec('ALTER TABLE roster ADD COLUMN operational_phone TEXT DEFAULT ""'); } catch {}
 try { db.exec('ALTER TABLE roster ADD COLUMN replacement_phone TEXT DEFAULT ""'); } catch {}
 try { db.exec('ALTER TABLE shift_logs ADD COLUMN dispatchers TEXT DEFAULT \'[]\''); } catch {}
+// v2 migrations – version, soft-delete, audit
+try { db.exec('ALTER TABLE incidents ADD COLUMN version INTEGER DEFAULT 1'); } catch {}
+try { db.exec('ALTER TABLE incidents ADD COLUMN is_deleted INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE incidents ADD COLUMN deleted_at TEXT'); } catch {}
+try { db.exec('ALTER TABLE incidents ADD COLUMN updated_at TEXT'); } catch {}
+try { db.exec('ALTER TABLE active_event ADD COLUMN version INTEGER DEFAULT 1'); } catch {}
+try { db.exec('ALTER TABLE roster ADD COLUMN version INTEGER DEFAULT 1'); } catch {}
+try { db.exec('ALTER TABLE roster ADD COLUMN is_deleted INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE roster ADD COLUMN deleted_at TEXT'); } catch {}
+try { db.exec('ALTER TABLE feed ADD COLUMN is_deleted INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE feed ADD COLUMN deleted_at TEXT'); } catch {}
+try { db.exec('ALTER TABLE event_evac ADD COLUMN is_deleted INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE approvals ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP'); } catch {}
+try { db.exec('ALTER TABLE event_forces ADD COLUMN is_deleted INTEGER DEFAULT 0'); } catch {}
+try { db.exec("ALTER TABLE feed ADD COLUMN src_type TEXT DEFAULT 'internal'"); } catch {}
+try { db.exec('ALTER TABLE feed ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP'); } catch {}
+try { db.exec('ALTER TABLE approvals ADD COLUMN media TEXT'); } catch {}
+try { db.exec('ALTER TABLE feed ADD COLUMN media TEXT'); } catch {}
+// Indexes on v2 columns — must run after ALTER TABLE migrations above
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_incidents_deleted ON incidents(is_deleted)'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_feed_deleted ON feed(is_deleted)'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_roster_deleted ON roster(is_deleted)'); } catch {}
 
 // Seed default admin if empty
 const adminCount = db.prepare('SELECT count(*) as count FROM users').get() as { count: number };

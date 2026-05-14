@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Icon } from '../components/Icons';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { RosterMember, DBRosterMember, DBIncident } from '../types';
+import { LiveMap } from '../components/LiveMap';
+import { RosterMember, DBRosterMember, DBIncident, DBFeedItem } from '../types';
 
 interface DashboardIncident {
   id: number;
@@ -21,13 +22,16 @@ interface DashboardData {
 export function DashboardScreen() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [roster, setRoster] = useState<RosterMember[]>([]);
+  const [feed, setFeed] = useState<DBFeedItem[]>([]);
   const [time, setTime] = useState(new Date());
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const fetchData = async () => {
     try {
-      const [resRoster, resInc] = await Promise.all([
+      const [resRoster, resInc, resFeed] = await Promise.all([
         fetch('/api/roster').then(r => r.json()),
         fetch('/api/incidents').then(r => r.json()),
+        fetch('/api/feed').then(r => r.json()),
       ]);
 
       setRoster((resRoster as DBRosterMember[]).map((item) => ({
@@ -37,7 +41,10 @@ export function DashboardScreen() {
         isOutOfSector: !!item.is_out_of_sector
       })));
 
-      const active = (resInc as DBIncident[]).filter(i => i.status !== 'הסתיים');
+      setFeed(resFeed || []);
+
+      const incItems = Array.isArray(resInc) ? resInc : resInc.items || [];
+      const active = (incItems as DBIncident[]).filter(i => i.status !== 'הסתיים');
       setData({
         incidents: active.map(i => ({
           id: i.id,
@@ -58,20 +65,36 @@ export function DashboardScreen() {
     fetchData();
     const itv = setInterval(fetchData, 5000); // Poll every 5s
     const clock = setInterval(() => setTime(new Date()), 1000);
-    return () => { clearInterval(itv); clearInterval(clock); };
+    
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    
+    return () => { 
+      clearInterval(itv); 
+      clearInterval(clock); 
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
   }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.warn(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
 
   const activeInSector = roster.filter(p => !p.isOutOfSector && p.state === 'field').length;
   const outCount = roster.filter(p => p.isOutOfSector).length;
 
   return (
-    <div className="dashboard-root">
-      <button className="exit-dash btn ghost sm" onClick={() => window.location.href = '/'}>
-        <Icon name="X" style={{ width: 14 }} />
-        יציאה ממצב חמ"ל
-      </button>
+    <div className="dashboard-root" style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0a0d14' }}>
       {/* Header */}
-      <header className="dash-h">
+      <header className="dash-h" style={{ flex: '0 0 auto' }}>
         <div className="brand">
           <div className="logo">M</div>
           <div>
@@ -83,7 +106,7 @@ export function DashboardScreen() {
         <div className="stats-row">
           <div className="dash-stat">
             <span className="lbl">אירועים פעילים</span>
-            <span className="val red pulse">{data?.incidents.length || 0}</span>
+            <span className={cn("val", data?.alerts ? "red pulse" : "green")}>{data?.incidents.length || 0}</span>
           </div>
           <div className="dash-stat">
             <span className="lbl">כוחות בשטח</span>
@@ -97,41 +120,44 @@ export function DashboardScreen() {
 
         <div className="spacer" />
 
-        <div className="clock-block">
-          <div className="time">{time.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
-          <div className="date">{time.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+        <div className="clock-block" style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn icon ghost" onClick={toggleFullscreen} data-tooltip="מסך מלא (F11)">
+              <Icon name={isFullscreen ? "X" : "Monitor"} />
+            </button>
+            <button className="btn icon ghost-red" onClick={() => window.location.href = '/'} data-tooltip="יציאה מחמ&quot;ל">
+              <Icon name="X" />
+            </button>
+          </div>
+          <div style={{ textAlign: 'left' }}>
+            <div className="time">{time.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
+            <div className="date">{time.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+          </div>
         </div>
       </header>
 
       {/* Main Content Grid */}
-      <main className="dash-grid">
-        {/* VIDEO FEEDS */}
-        <div className="dash-card video-grid">
+      <main className="dash-grid" style={{ flex: 1, minHeight: 0, padding: 15, paddingBottom: 0 }}>
+        {/* INTERACTIVE MAP */}
+        <div className="dash-card video-grid" style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="card-t">
-            <Icon name="Camera" />
-            <span>תצוגת מצלמות חיה</span>
+            <Icon name="Map" />
+            <span>מפת גזרה חיה</span>
             <div className="spacer" />
-            <span className="live-tag">LIVE</span>
+            <span className="live-tag" style={{ background: 'var(--blue)', color: '#fff' }}>LIVE</span>
           </div>
-          <div className="video-container">
-            {[1,2,3,4,5,6].map(i => (
-              <div key={i} className="cam-feed">
-                <div className="cam-label">CAM-{String(i).padStart(2,'0')} | {['חווארה','צומת תפוח','שער אריאל','מחסום בקעות','מעלה שומרון','יצהר'][i-1]}</div>
-                <div className="cam-overlay">
-                  <div className="noise" />
-                </div>
-              </div>
-            ))}
+          <div style={{ flex: 1, position: 'relative', background: '#111', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
+            {data ? <LiveMap incidents={data.incidents as any} /> : null}
           </div>
         </div>
 
         {/* ACTIVE INCIDENTS */}
-        <div className="dash-card incidents-panel">
+        <div className="dash-card incidents-panel" style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="card-t">
             <Icon name="AlertTriangle" />
             <span>אירועים בטיפול</span>
           </div>
-          <div className="incident-list">
+          <div className="incident-list" style={{ flex: 1, overflowY: 'auto' }}>
             <AnimatePresence>
               {data?.incidents.map((inc) => (
                 <motion.div 
@@ -144,27 +170,33 @@ export function DashboardScreen() {
                   <div className="content">
                     <div className="top">
                       <span className="type">{inc.type}</span>
-                      <span className="time">{inc.time}</span>
+                      <span className="time mono">{inc.time}</span>
                     </div>
                     <div className="loc">{inc.loc}</div>
                   </div>
-                  <div className="status-badge">בטיפול</div>
+                  <div className="status-badge" style={{ animation: 'urgentGlow 2s infinite' }}>בטיפול</div>
                 </motion.div>
               ))}
+              {data?.incidents.length === 0 && (
+                <div className="empty-state" style={{ padding: 40 }}>
+                  <Icon name="CheckCircle" style={{ width: 32, height: 32, opacity: 0.3 }} />
+                  <div>אין אירועים פעילים</div>
+                </div>
+              )}
             </AnimatePresence>
           </div>
         </div>
 
         {/* ROSTER / PERSONNEL */}
-        <div className="dash-card roster-mini">
+        <div className="dash-card roster-mini" style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="card-t">
             <Icon name="Users" />
             <span>בעלי תפקידים מחוץ לגזרה</span>
           </div>
-          <div className="mini-roster">
+          <div className="mini-roster" style={{ flex: 1, overflowY: 'auto' }}>
             {roster.filter(p => p.isOutOfSector).map((p, i) => (
               <div key={i} className="mini-r">
-                <div className="av">{p.name[0]}</div>
+                <div className="av" style={{ background: 'var(--red)', color: 'white' }}>{p.name[0]}</div>
                 <div className="info">
                   <div className="n">{p.name}</div>
                   <div className="m">{p.role} · {p.reason || 'חופשה'}</div>
@@ -183,6 +215,21 @@ export function DashboardScreen() {
           </div>
         </div>
       </main>
+
+      {/* Ticker Bottom Bar */}
+      <div className="ticker" style={{ flex: '0 0 auto' }}>
+        <div className="ticker-inner">
+          {feed.slice(0, 10).map((f, i) => (
+            <span key={f.id} className={cn("ticker-item", f.urgent && "urgent")}>
+              <span className="mono" style={{ opacity: 0.7, marginRight: 8 }}>{f.time}</span>
+              <span style={{ fontWeight: 600, color: 'var(--brand)', margin: '0 6px' }}>{f.src}:</span>
+              {f.text}
+              {i < 9 && <span style={{ opacity: 0.3, margin: '0 20px' }}>•</span>}
+            </span>
+          ))}
+          {feed.length === 0 && <span className="ticker-item">אין דיווחים אחרונים</span>}
+        </div>
+      </div>
     </div>
   );
 }

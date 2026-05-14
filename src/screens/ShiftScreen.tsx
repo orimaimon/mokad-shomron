@@ -97,7 +97,7 @@ function DispatcherInput({
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
           placeholder="הזן שם ולחץ Enter או +"
-          style={{ flex: 1, padding: '9px 12px', borderRadius: 8, background: 'var(--bg-2)', border: '1px solid var(--border-1)', color: 'white', fontSize: 13 }}
+          style={{ flex: 1, padding: '9px 12px', borderRadius: 8, background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--ink-1)', fontSize: 13 }}
         />
         <datalist id="operator-suggestions">
           {suggestions.filter(s => !value.includes(s)).map(s => <option key={s} value={s} />)}
@@ -120,7 +120,7 @@ function DispatcherInput({
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '10px', borderRadius: 8,
-  background: 'var(--bg-2)', border: '1px solid var(--border-1)', color: 'white', fontSize: 13,
+  background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--ink-1)', fontSize: 13,
 };
 
 export function ShiftScreen({ data, user }: ShiftScreenProps) {

@@ -12,6 +12,7 @@ export interface NavItem {
   icon: string;
   cls?: string;
   admin?: boolean;
+  hotkey?: string;
 }
 
 export interface OpenEventFormData {
@@ -20,6 +21,7 @@ export interface OpenEventFormData {
   location: string;
   grid: string;
   description: string;
+  map_coords?: string;
 }
 
 // ── Raw DB types (snake_case, as returned by the API) ─────────────────────
@@ -38,6 +40,7 @@ export interface DBRosterMember {
   replacement_phone: string;
   phone: string;
   operational_phone: string;
+  version: number;
 }
 
 export interface DBFeedItem {
@@ -48,6 +51,9 @@ export interface DBFeedItem {
   urgent: number;
   system: number;
   event_id: string | null;
+  src_type?: 'internal' | 'osint' | 'field';
+  created_at?: string;
+  media?: string | null;
 }
 
 export interface DBIncident {
@@ -56,7 +62,10 @@ export interface DBIncident {
   location: string;
   status: string;
   severity: string;
+  sev?: string;
   created_at: string;
+  version: number;
+  map_coords?: string;
 }
 
 export interface DBActiveEventRaw {
@@ -77,6 +86,7 @@ export interface DBActiveEventRaw {
   missing: number;
   trapped: number;
   map_coords: string;
+  version: number;
   forces: Force[];
   evac: Evacuation[];
   media: unknown[];
@@ -132,6 +142,7 @@ export interface ActiveEvent {
   missing: number;
   trapped: number;
   map_coords?: string;
+  version?: number;
 }
 
 export interface LogEntry {
@@ -143,16 +154,21 @@ export interface LogEntry {
   urgent?: number | boolean;
   system?: number | boolean;
   event_id?: string | null;
+  src_type?: 'internal' | 'osint' | 'field';
+  created_at?: string;
+  media?: string | null;
 }
 
 export interface ApprovalRequest {
   id: string;
   time: string;
+  created_at?: string;
   author: string;
   text: string;
   attachments?: number;
   scene?: string | null;
   urgent?: boolean;
+  media?: string | null;
 }
 
 export interface RoutineIncident {
@@ -165,6 +181,7 @@ export interface RoutineIncident {
   t: string;
   loc: string;
   sev: string;
+  version: number;
 }
 
 export interface RosterMember {
@@ -183,6 +200,7 @@ export interface RosterMember {
   replacement_phone?: string;
   phone?: string;
   operational_phone?: string;
+  version?: number;
 }
 
 export interface RoutineMetrics {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtDate } from '../hooks/useClock';
 import { MokadData, RosterMember, RoutineIncident } from '../types';
@@ -10,9 +10,11 @@ interface RoutineScreenProps {
   data: MokadData;
   onOpenEmergency: () => void;
   onRosterChange: () => void;
+  showNewIncidentModal?: boolean;
+  onCloseNewIncidentModal?: () => void;
 }
 
-const inputStyle = { width: '100%', padding: '10px', borderRadius: 8, background: 'var(--bg-2)', border: '1px solid var(--border-1)', color: 'white' };
+const inputStyle = { width: '100%', padding: '10px', borderRadius: 8, background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--ink-1)' };
 
 function RosterUpdateModal({ person, onClose, onSave, onDelete }: { person: RosterMember, onClose: () => void, onSave: (p: RosterMember) => void, onDelete?: () => void }) {
   const [isOut, setIsOut] = useState(!!person.isOutOfSector);
@@ -111,7 +113,7 @@ function RosterUpdateModal({ person, onClose, onSave, onDelete }: { person: Rost
           <div style={{ borderTop: '1px solid var(--border-1)', paddingTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div className="input-group">
               <label style={{ display: 'block', marginBottom: 5, fontSize: 12, color: 'var(--ink-3)' }}>סטטוס זמינות</label>
-              <select style={inputStyle} value={personState} onChange={e => setPersonState(e.target.value)} disabled={isOut}>
+              <select style={inputStyle} value={personState} onChange={e => setPersonState(e.target.value as RosterMember['state'])} disabled={isOut}>
                 <option value="field">בשטח</option>
                 <option value="brief">תדריך</option>
                 <option value="return">בחזרה</option>
@@ -181,9 +183,15 @@ function EditIncidentModal({ incident, onClose, onSave }: { incident: RoutineInc
       const res = await fetch(`/api/incidents/${incident.id}/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: form.type, location: form.loc, status: form.status, severity: form.sev }),
+        body: JSON.stringify({ type: form.type, location: form.loc, status: form.status, severity: form.sev, version: incident.version }),
       });
-      if (res.ok) onSave();
+      if (res.ok) {
+        onSave();
+      } else if (res.status === 409) {
+        toast('האירוע עודכן על ידי משתמש אחר. אנא סגור ורענן.', 'error');
+      } else {
+        toast('שגיאה בעדכון האירוע', 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -238,9 +246,28 @@ function NewIncidentModal({ onClose, onSave }: { onClose: () => void, onSave: ()
     sev: 'amber'
   });
   const [loading, setLoading] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<{ type: string; created_at: string } | null>(null);
+
+  const checkDuplicate = async (location: string) => {
+    if (!location.trim()) { setDuplicateWarning(null); return; }
+    try {
+      const res = await fetch(`/api/incidents/check-duplicate?location=${encodeURIComponent(location)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.duplicate) {
+          setDuplicateWarning(data.existing);
+        } else {
+          setDuplicateWarning(null);
+        }
+      }
+    } catch (err) { console.warn('[duplicate-check]', err); }
+  };
 
   const handleSave = async () => {
     if (!formData.loc.trim()) return;
+    if (duplicateWarning && !window.confirm(`שים לב: נפתח אירוע "${duplicateWarning.type}" באותו מיקום לפני מספר דקות. האם לפתוח אירוע חדש בכל זאת?`)) {
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/incidents', {
@@ -266,8 +293,18 @@ function NewIncidentModal({ onClose, onSave }: { onClose: () => void, onSave: ()
           </div>
           <div className="field">
             <label>מיקום</label>
-            <input className="input" value={formData.loc} onChange={e => setFormData({ ...formData, loc: e.target.value })} />
+            <input
+              className="input"
+              value={formData.loc}
+              onChange={e => { setFormData({ ...formData, loc: e.target.value }); checkDuplicate(e.target.value); }}
+            />
           </div>
+          {duplicateWarning && (
+            <div style={{ padding: 10, background: 'rgba(234,179,8,0.12)', border: '1px solid rgba(234,179,8,0.4)', borderRadius: 6, fontSize: 12, color: '#fbbf24', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Icon name="AlertTriangle" />
+              <span>⚠️ שים לב: נפתח אירוע <strong>"{duplicateWarning.type}"</strong> באותו מיקום לפני מספר דקות. האם מדובר באותו אירוע?</span>
+            </div>
+          )}
           <div className="field">
             <label>חומרה</label>
             <select className="input" value={formData.sev} onChange={e => setFormData({ ...formData, sev: e.target.value })}>
@@ -352,7 +389,7 @@ function NewPersonModal({ onClose, onSave }: { onClose: () => void, onSave: () =
   );
 }
 
-export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: RoutineScreenProps) {
+export function RoutineScreen({ data, onOpenEmergency, onRosterChange, showNewIncidentModal, onCloseNewIncidentModal }: RoutineScreenProps) {
   const r = data.routine;
   const now = useNow();
   const [tab, setTab] = useState<'in' | 'out'>('out');
@@ -360,9 +397,21 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: Routine
   const [showNewPerson, setShowNewPerson] = useState(false);
   const [showNewIncident, setShowNewIncident] = useState(false);
   const [reportText, setReportText] = useState('');
+  const [reportMedia, setReportMedia] = useState<string | null>(null);
+  const [reportMediaUploading, setReportMediaUploading] = useState(false);
+  const [feedDragging, setFeedDragging] = useState(false);
+  const reportFileRef = useRef<HTMLInputElement>(null);
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
   const [closingIds, setClosingIds] = useState<Set<number>>(new Set());
   const [editingIncident, setEditingIncident] = useState<any>(null);
+
+  // Sync external Ctrl+N trigger
+  useEffect(() => {
+    if (showNewIncidentModal) {
+      setShowNewIncident(true);
+      onCloseNewIncidentModal?.();
+    }
+  }, [showNewIncidentModal, onCloseNewIncidentModal]);
 
   // ── filters & sort ──
   const [incSearch, setIncSearch] = useState('');
@@ -372,10 +421,25 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: Routine
   const [feedSearch, setFeedSearch] = useState('');
   const [rosterSearch, setRosterSearch] = useState('');
 
-  const handleCloseIncident = async (id: number) => {
+  const handleCloseIncident = async (id: number, version?: number) => {
+    // Require confirmation for high-severity incidents
+    const incident = r.incidents.find(i => i.id === id);
+    if (incident && (incident.sev === 'red' || incident.severity === 'red')) {
+      if (!window.confirm('⚠️ זהו אירוע בחומרה גבוהה. האם אתה בטוח שברצונך לסגור אותו?')) return;
+    }
     setClosingIds(prev => new Set(prev).add(id));
     try {
-      await fetch(`/api/incidents/${id}/close`, { method: 'POST' });
+      const res = await fetch(`/api/incidents/${id}/close`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version }),
+      });
+      if (res.status === 409) {
+        toast('האירוע עודכן על ידי משתמש אחר. אנא רענן את הדף.', 'error');
+        setClosingIds(prev => { const s = new Set(prev); s.delete(id); return s; });
+      } else if (!res.ok) {
+        setClosingIds(prev => { const s = new Set(prev); s.delete(id); return s; });
+      }
     } catch {
       setClosingIds(prev => { const s = new Set(prev); s.delete(id); return s; });
     }
@@ -388,15 +452,67 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: Routine
     });
   };
 
+  const processReportMedia = async (file: File) => {
+    setReportMediaUploading(true);
+    try {
+      if (file.type.startsWith('image/')) {
+        const bitmap = await createImageBitmap(file);
+        const canvas = document.createElement('canvas');
+        const MAX = 1400;
+        const scale = Math.min(1, MAX / Math.max(bitmap.width, bitmap.height));
+        canvas.width = Math.round(bitmap.width * scale);
+        canvas.height = Math.round(bitmap.height * scale);
+        canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        setReportMedia(canvas.toDataURL('image/jpeg', 0.82));
+      } else {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('/api/media/upload', { method: 'POST', body: fd });
+        const { url } = await res.json();
+        setReportMedia(url);
+      }
+    } catch {
+      toast('שגיאה בטעינת קובץ', 'error');
+    } finally {
+      setReportMediaUploading(false);
+    }
+  };
+
+  const handleReportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await processReportMedia(file);
+    e.target.value = '';
+  };
+
+  const handleFeedDragOver = (e: React.DragEvent) => { e.preventDefault(); setFeedDragging(true); };
+  const handleFeedDragLeave = () => setFeedDragging(false);
+  const handleFeedDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setFeedDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) await processReportMedia(file);
+  };
+
+  const handleFeedPaste = async (e: React.ClipboardEvent) => {
+    const file = Array.from(e.clipboardData.items)
+      .find(item => item.kind === 'file' && item.type.startsWith('image/'))
+      ?.getAsFile();
+    if (file) {
+      e.preventDefault();
+      await processReportMedia(file);
+    }
+  };
+
   const handleSendReport = async () => {
-    if (!reportText.trim()) return;
+    if (!reportText.trim() && !reportMedia) return;
     try {
       await fetch('/api/feed', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ src: 'מוקדן', text: reportText })
+        body: JSON.stringify({ src: 'מוקדן', text: reportText, media: reportMedia })
       });
       setReportText('');
+      setReportMedia(null);
     } catch (err) {}
   };
 
@@ -422,8 +538,8 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: Routine
     if (incSev) items = items.filter(i => (i.sev || i.severity) === incSev);
     if (incSort.key) {
       items.sort((a, b) => {
-        const va = String((a as Record<string, unknown>)[incSort.key] ?? '');
-        const vb = String((b as Record<string, unknown>)[incSort.key] ?? '');
+        const va = String((a as unknown as Record<string, unknown>)[incSort.key] ?? '');
+        const vb = String((b as unknown as Record<string, unknown>)[incSort.key] ?? '');
         return incSort.asc ? va.localeCompare(vb, 'he') : vb.localeCompare(va, 'he');
       });
     }
@@ -502,23 +618,23 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: Routine
             <span className="muted mono" style={{ fontSize: 12 }}>{fmtDate(now)}</span>
           </div>
           <div className="panel-b" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div className="metric">
-              <div className="lbl">כוננות גזרה</div>
+            <div className="metric" style={{ borderColor: 'rgba(34,197,94,0.25)' }}>
+              <div className="lbl"><Icon name="Shield" style={{ width: 12, display: 'inline', verticalAlign: -2, marginLeft: 4 }} />כוננות גזרה</div>
               <div className="num" style={{ fontSize: 24, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span className="tag green" style={{ fontSize: 13 }}>שגרה</span>
               </div>
             </div>
-            <div className="metric">
-              <div className="lbl">אירועים פעילים</div>
-              <div className="num">{r.metrics.open}</div>
-              <div style={{ display: 'flex', gap: 6, marginTop: 8, fontSize: 11, color: 'var(--ink-2)' }}>
-                <span style={{ color: 'var(--red)' }}>🔴 {r.incidents.filter(i => (i.sev || i.severity) === 'red' && i.status !== 'הסתיים').length}</span>
-                <span style={{ color: 'var(--amber)' }}>🟡 {r.incidents.filter(i => (i.sev || i.severity) === 'amber' && i.status !== 'הסתיים').length}</span>
-                <span style={{ color: 'var(--green)' }}>🟢 {r.incidents.filter(i => (i.sev || i.severity) === 'green' && i.status !== 'הסתיים').length}</span>
+            <div className="metric" style={{ borderColor: r.metrics.open > 0 ? 'rgba(239,68,68,0.25)' : 'var(--glass-border)' }}>
+              <div className="lbl"><Icon name="Siren" style={{ width: 12, display: 'inline', verticalAlign: -2, marginLeft: 4 }} />אירועים פעילים</div>
+              <div className="num" style={{ color: r.metrics.open > 0 ? 'var(--red)' : 'var(--ink-1)' }}>{r.metrics.open}</div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, fontSize: 11, color: 'var(--ink-2)' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span className="sev-dot red" />{r.incidents.filter(i => (i.sev || i.severity) === 'red' && i.status !== 'הסתיים').length}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span className="sev-dot amber" />{r.incidents.filter(i => (i.sev || i.severity) === 'amber' && i.status !== 'הסתיים').length}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span className="sev-dot green" />{r.incidents.filter(i => (i.sev || i.severity) === 'green' && i.status !== 'הסתיים').length}</span>
               </div>
             </div>
             <div className="metric">
-              <div className="lbl">אירועים היום</div>
+              <div className="lbl"><Icon name="Clock" style={{ width: 12, display: 'inline', verticalAlign: -2, marginLeft: 4 }} />אירועים היום</div>
               <div className="num">{r.metrics.today}</div>
               <div className="spark" style={{ marginTop: 8 }}>
                 {[6, 3, 8, 4, 7, 9, 5, 11, 8, 4, 12, 9, 6, 14].map((h, i) => (
@@ -527,7 +643,7 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: Routine
               </div>
             </div>
             <div className="metric">
-              <div className="lbl">בעלי תפקידים בשטח</div>
+              <div className="lbl"><Icon name="User" style={{ width: 12, display: 'inline', verticalAlign: -2, marginLeft: 4 }} />בעלי תפקידים בשטח</div>
               <div className="num">
                 {r.roster.filter(p => p.state === 'field').length}
                 <span style={{ fontSize: 14, color: 'var(--ink-3)' }}> / {r.roster.length}</span>
@@ -547,7 +663,7 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: Routine
             <h3>אירועים חריגים</h3>
             <span className="tag" style={{ marginRight: 4 }}>{filteredIncidents.length}</span>
             <div className="spacer" />
-            <button className="btn sm" onClick={() => setShowNewIncident(true)}><Icon name="Plus" /> חדש</button>
+            <button className="btn sm" onClick={() => setShowNewIncident(true)} data-tooltip="Ctrl+N"><Icon name="Plus" /> חדש</button>
           </div>
           {/* filter bar */}
           <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border-1)', display: 'flex', gap: 6, background: 'var(--bg-1)', flexWrap: 'wrap' }}>
@@ -577,6 +693,7 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: Routine
             <table className="tbl">
               <thead>
                 <tr>
+                  <th style={{ width: 12 }}></th>
                   <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('t')}>שעה<SortIcon k="t" /></th>
                   <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('type')}>סוג<SortIcon k="type" /></th>
                   <th style={{ cursor: 'pointer' }} onClick={() => toggleSort('loc')}>מיקום<SortIcon k="loc" /></th>
@@ -586,23 +703,37 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: Routine
               </thead>
               <tbody>
                 {filteredIncidents.length === 0 && (
-                  <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--ink-4)', padding: 16 }}>אין תוצאות</td></tr>
+                  <tr><td colSpan={6}>
+                    <div className="empty-state" style={{ padding: 30 }}>
+                      <Icon name="Check" className="empty-icon" style={{ width: 28, height: 28 }} />
+                      <span>אין אירועים תואמים</span>
+                    </div>
+                  </td></tr>
                 )}
                 {filteredIncidents.map((inc) => {
                   const closed = closingIds.has(inc.id) || inc.status === 'הסתיים';
+                  const sev = inc.sev || inc.severity || 'green';
+                  // Calculate time since
+                  const minsAgo = Math.floor((Date.now() - new Date(inc.created_at).getTime()) / 60000);
+                  const timeSince = minsAgo < 60 ? `${minsAgo} דק'` : `${Math.floor(minsAgo / 60)}:${String(minsAgo % 60).padStart(2, '0')} שעות`;
+                  const isStale = minsAgo > 120;
                   return (
                     <tr
                       key={inc.id}
-                      style={{ opacity: closed ? 0.5 : 1, cursor: 'pointer' }}
+                      style={{ opacity: closed ? 0.5 : 1, cursor: 'pointer', transition: 'all 0.15s' }}
                       onClick={() => setEditingIncident(inc)}
                     >
-                      <td className="mono" style={{ color: 'var(--ink-3)' }}>{inc.t}</td>
-                      <td>{inc.type}</td>
+                      <td style={{ padding: '11px 8px' }}><span className={cn("sev-dot", sev)} /></td>
+                      <td className="mono" style={{ color: 'var(--ink-3)' }}>
+                        <div>{inc.t}</div>
+                        {!closed && <span className={cn("time-since", isStale && "stale", minsAgo < 10 && "recent")}>{timeSince}</span>}
+                      </td>
+                      <td style={{ fontWeight: 500 }}>{inc.type}</td>
                       <td style={{ color: 'var(--ink-2)' }}>{inc.loc}</td>
-                      <td><span className={cn("tag", closed ? 'green' : inc.sev)}>{closed ? 'הסתיים' : inc.status}</span></td>
+                      <td><span className={cn("tag", closed ? 'green' : sev)}>{closed ? 'הסתיים' : inc.status}</span></td>
                       <td onClick={e => e.stopPropagation()}>
                         {!closed && (
-                          <button className="btn ghost-brand icon-sm" title="סגור אירוע" onClick={() => handleCloseIncident(inc.id)}>
+                          <button className="btn ghost-brand icon-sm" data-tooltip="סגור אירוע" onClick={() => handleCloseIncident(inc.id, inc.version)}>
                             <Icon name="Check" style={{ width: 13 }} />
                           </button>
                         )}
@@ -652,6 +783,15 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: Routine
                   <FormattedText text={it.text} />
                   <span className="src">— {it.src}</span>
                 </div>
+                {it.media && (
+                  <div style={{ marginTop: 6 }}>
+                    {/\.(mp4|webm|mov|avi)(\?.*)?$/i.test(it.media) || it.media.startsWith('data:video/') ? (
+                      <video src={it.media} controls style={{ maxWidth: '100%', maxHeight: 160, borderRadius: 6, display: 'block' }} />
+                    ) : (
+                      <img src={it.media} alt="" style={{ maxWidth: '100%', maxHeight: 160, borderRadius: 6, display: 'block', cursor: 'pointer', objectFit: 'cover' }} onClick={() => window.open(it.media!, '_blank')} />
+                    )}
+                  </div>
+                )}
                 <button
                   className="btn ghost-red icon-sm"
                   style={{ position: 'absolute', top: 6, left: 6, opacity: 0.35, transition: 'opacity .15s', padding: '2px 4px' }}
@@ -665,16 +805,44 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: Routine
               </div>
             ))}
           </div>
-          <div style={{ padding: 12, borderTop: '1px solid var(--border-1)', background: 'var(--bg-1)' }}>
+          <div
+            style={{ padding: 12, borderTop: '1px solid var(--border-1)', background: 'var(--bg-1)', outline: feedDragging ? '2px dashed var(--amber)' : '2px dashed transparent', borderRadius: '0 0 8px 8px', transition: 'outline 0.15s' }}
+            onDragOver={handleFeedDragOver}
+            onDragLeave={handleFeedDragLeave}
+            onDrop={handleFeedDrop}
+          >
+            {reportMedia && (
+              <div style={{ marginBottom: 8, position: 'relative', display: 'inline-block' }}>
+                {/\.(mp4|webm|mov|avi)(\?.*)?$/i.test(reportMedia) || reportMedia.startsWith('data:video/') ? (
+                  <video src={reportMedia} style={{ height: 72, borderRadius: 6, display: 'block' }} muted />
+                ) : (
+                  <img src={reportMedia} alt="" style={{ height: 72, borderRadius: 6, display: 'block', objectFit: 'cover' }} />
+                )}
+                <button onClick={() => setReportMedia(null)} style={{ position: 'absolute', top: -6, right: -6, background: 'var(--bg-3)', border: '1px solid var(--line)', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+                  <Icon name="X" style={{ width: 10, color: 'var(--ink-2)' }} />
+                </button>
+              </div>
+            )}
+            <input ref={reportFileRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={handleReportFileChange} />
             <div className="input-group" style={{ display: 'flex', gap: 8 }}>
-              <input 
-                type="text" 
-                className="input" 
-                placeholder="הוספת דיווח ליומן..." 
+              <input
+                type="text"
+                className="input"
+                placeholder={feedDragging ? 'שחרר כאן...' : 'הוספת דיווח ליומן...'}
                 value={reportText}
                 onChange={e => setReportText(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSendReport()}
+                onPaste={handleFeedPaste}
               />
+              <button
+                className="btn ghost icon"
+                title="צרף מדיה"
+                onClick={() => reportFileRef.current?.click()}
+                disabled={reportMediaUploading}
+                style={{ color: reportMedia ? 'var(--amber)' : undefined }}
+              >
+                <Icon name={reportMediaUploading ? 'Clock' : 'Camera'} />
+              </button>
               <button className="btn brand icon" onClick={handleSendReport}><Icon name="Send" /></button>
             </div>
           </div>
@@ -729,10 +897,15 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: Routine
                 className="roster"
               >
                 {filteredRoster.length === 0 && (
-                  <div style={{ padding: 16, color: 'var(--ink-4)', textAlign: 'center', fontSize: 13 }}>אין תוצאות</div>
+                  <div className="empty-state" style={{ padding: 24 }}>
+                    <Icon name="User" className="empty-icon" style={{ width: 24, height: 24 }} />
+                    <span style={{ fontSize: 13 }}>אין תוצאות</span>
+                  </div>
                 )}
                 {filteredRoster.map((person, i) => {
                   const stateConfig = getRosterStateConfig(person.state);
+                  const initials = person.name.split(' ').map((s: string) => s[0]).join('');
+                  const ringClass = person.isOutOfSector ? 'out' : person.state === 'brief' ? 'brief' : '';
                   return (
                     <div key={i} style={{ borderBottom: '1px solid var(--border-1)' }}>
                       {/* main row */}
@@ -741,8 +914,8 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: Routine
                         onClick={() => setEditingPerson(person)}
                         style={{ cursor: 'pointer', borderBottom: 'none' }}
                       >
-                        <div className="av" style={person.isOutOfSector ? { background: 'var(--red)', color: 'white' } : {}}>
-                          {person.name.split(' ').map((s: string) => s[0]).join('')}
+                        <div className={cn("avatar-ring", ringClass)}>
+                          <div className="inner">{initials}</div>
                         </div>
                         <div style={{ flex: 1 }}>
                           <div className="name">
@@ -753,10 +926,10 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange }: Routine
                             {person.role} · {person.isOutOfSector ? 'יציאה מהגזרה' : person.task}
                           </div>
                           {(person.phone || person.operational_phone) && (
-                            <div className="meta mono" style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 2 }}>
-                              {person.phone && <span>{person.phone}</span>}
+                            <div className="meta mono" style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 2 }} onClick={e => e.stopPropagation()}>
+                              {person.phone && <a href={`tel:${person.phone}`} style={{ color: 'var(--ink-3)', textDecoration: 'none' }} data-tooltip="חייג">{person.phone}</a>}
                               {person.phone && person.operational_phone && <span style={{ margin: '0 4px' }}>·</span>}
-                              {person.operational_phone && <span style={{ color: 'var(--brand)' }}>{person.operational_phone}</span>}
+                              {person.operational_phone && <a href={`tel:${person.operational_phone}`} style={{ color: 'var(--blue)', textDecoration: 'none' }} data-tooltip="חייג מבצעי">{person.operational_phone}</a>}
                             </div>
                           )}
                         </div>

@@ -1,0 +1,26 @@
+# Litestream configuration for Mokad Shomron
+# See: https://litestream.io/reference/config/
+#
+# Usage:
+#   1. Install litestream: https://litestream.io/install/
+#   2. Set environment variables (LITESTREAM_S3_ENDPOINT, LITESTREAM_ACCESS_KEY_ID, LITESTREAM_SECRET_ACCESS_KEY)
+#   3. Run: litestream replicate -config litestream.yml
+#
+# For local testing with MinIO:
+#   LITESTREAM_S3_ENDPOINT=http://localhost:9000 litestream replicate -config litestream.yml
+
+dbs:
+  - path: ./mokad.db
+    replicas:
+      - type: s3
+        bucket: mokad-shomron-backup
+        path: db
+        endpoint: ${LITESTREAM_S3_ENDPOINT}
+        access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+        # Sync interval — every 1 second for near-realtime backup
+        sync-interval: 1s
+        # Retention — keep snapshots for 7 days
+        retention: 168h
+        # Snapshot interval — full snapshot every 24h
+        snapshot-interval: 24h

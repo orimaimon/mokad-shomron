@@ -18,6 +18,9 @@ import adminRoutes from './server/routes/admin.routes.js';
 import reportsRoutes from './server/routes/reports.routes.js';
 import shiftsRoutes from './server/routes/shifts.routes.js';
 import approvalsRoutes from './server/routes/approvals.routes.js';
+import auditRoutes from './server/routes/audit.routes.js';
+import mobileRoutes from './server/routes/mobile.routes.js';
+import mediaRoutes from './server/routes/media.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -38,6 +41,10 @@ async function startServer() {
   app.use('/api/reports', reportsRoutes);
   app.use('/api/shifts', shiftsRoutes);
   app.use('/api/approvals', approvalsRoutes);
+  app.use('/api/audit', auditRoutes);
+  app.use('/api/mobile', mobileRoutes);
+  app.use('/api/media', mediaRoutes);
+  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
   // --- VITE MIDDLEWARE ---
   if (process.env.NODE_ENV !== 'production') {

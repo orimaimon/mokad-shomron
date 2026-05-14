@@ -8,7 +8,7 @@ export const validateBody = (schema: ZodTypeAny) => {
       next();
     } catch (err) {
       if (err instanceof ZodError) {
-        return res.status(400).json({ error: 'Validation Error', details: err.errors });
+        return res.status(400).json({ error: 'Validation Error', details: err.issues });
       }
       return res.status(400).json({ error: 'Invalid request payload' });
     }

@@ -4,6 +4,7 @@ import db from '../db.js';
 import { requireAdmin } from '../middlewares/auth.js';
 import { validateBody } from '../middlewares/validate.js';
 import { UserSchema, UserBody, DBUser } from '../types.js';
+import { logAction, auditUser } from '../audit.js';
 
 const router = Router();
 
@@ -38,6 +39,13 @@ router.delete('/users/:email', (req, res) => {
   const { email } = req.params;
   if (email === 'admin@mokad.org') return res.status(400).json({ error: 'Cannot delete primary admin' });
   db.prepare('DELETE FROM users WHERE email = ?').run(email);
+  logAction({
+    ...auditUser(req),
+    actionType: 'delete',
+    entityType: 'approval', // reusing closest type for user management
+    entityId: email,
+    metadata: { action: 'delete_user' },
+  });
   res.json({ success: true });
 });
 

@@ -24,6 +24,9 @@ export interface DBRoster {
   phone: string;
   operational_phone: string;
   replacement_phone: string;
+  version: number;
+  is_deleted: number;
+  deleted_at: string | null;
 }
 
 export interface DBIncident {
@@ -33,6 +36,10 @@ export interface DBIncident {
   status: string;
   severity: string;
   created_at: string;
+  updated_at: string | null;
+  version: number;
+  is_deleted: number;
+  deleted_at: string | null;
 }
 
 export interface DBFeed {
@@ -43,6 +50,11 @@ export interface DBFeed {
   urgent: number;
   system: number;
   event_id: string | null;
+  src_type: 'internal' | 'osint' | 'field';
+  media: string | null;
+  created_at: string;
+  is_deleted: number;
+  deleted_at: string | null;
 }
 
 export interface DBActiveEvent {
@@ -63,6 +75,7 @@ export interface DBActiveEvent {
   missing: number;
   trapped: number;
   map_coords: string;
+  version: number;
 }
 
 export interface DBApproval {
@@ -71,8 +84,10 @@ export interface DBApproval {
   author: string;
   text: string;
   scene: string | null;
+  media: string | null;
   urgent: number;
   status: string;
+  created_at: string;
 }
 
 export interface DBShiftLog {
@@ -122,6 +137,7 @@ export const RosterUpdateSchema = z.object({
   return_time: z.string().optional(),
   phone: z.string().optional(),
   operational_phone: z.string().optional(),
+  version: z.number().int().optional(),
 });
 
 export const IncidentAddSchema = z.object({
@@ -132,14 +148,17 @@ export const IncidentAddSchema = z.object({
 
 export const IncidentUpdateSchema = IncidentAddSchema.extend({
   status: z.string().min(1),
+  version: z.number().int().optional(),
 });
 
 export const FeedAddSchema = z.object({
   src: z.string().min(1),
-  text: z.string().min(1),
+  text: z.string(),
   urgent: z.boolean().optional(),
   system: z.boolean().optional(),
   event_id: z.string().optional(),
+  src_type: z.enum(['internal', 'osint', 'field']).optional(),
+  media: z.string().optional(),
 });
 
 export const EmergencyStartSchema = z.object({
@@ -161,6 +180,7 @@ export const EmergencyUpdateSchema = z.object({
   trapped: z.number().int().min(0).optional(),
   description: z.string().optional(),
   map_coords: z.string().optional(),
+  version: z.number().int().optional(),
 });
 
 export const EmergencyCloseSchema = z.object({
@@ -184,6 +204,7 @@ export const ApprovalAddSchema = z.object({
   author: z.string().min(1),
   text: z.string().min(1),
   scene: z.string().optional(),
+  media: z.string().optional(),
   urgent: z.boolean().optional(),
 });
 
@@ -222,3 +243,18 @@ export type ShiftEndBody = z.infer<typeof ShiftEndSchema>;
 export type ApprovalAddBody = z.infer<typeof ApprovalAddSchema>;
 export type ApprovalApproveBody = z.infer<typeof ApprovalApproveSchema>;
 export type EvacBody = z.infer<typeof EvacSchema>;
+
+// Audit Log DB type
+export interface DBAuditLog {
+  id: number;
+  user_id: number | null;
+  user_name: string | null;
+  action_type: string;
+  entity_type: string;
+  entity_id: string;
+  previous_state: string | null;
+  new_state: string | null;
+  metadata: string | null;
+  ip_address: string | null;
+  created_at: string;
+}

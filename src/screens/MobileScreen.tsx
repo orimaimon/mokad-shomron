@@ -1,26 +1,133 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtHM, elapsed } from '../hooks/useClock';
 import { toast } from '../components/Toast';
 
-export function MobileScreen({ data }: { data: { activeEvent: { startedAt: number }; log: { urgent?: boolean; t: string; text: string; src: string }[] } }) {
+export function MobileScreen({ data }: { data: { activeEvent: { startedAt: number }; log: { urgent?: boolean | number; t: string; text: string; src: string }[] } }) {
   const [tab, setTab] = useState('feed');
   const now = useNow();
-  const [reportText, setReportText] = useState('רכב לבן עם 3 נוסעים נצפה במהירות גבוהה ביציאה מהיישוב לכיוון ציר 55.');
+  const [reportText, setReportText] = useState('');
+  const [reportLocation, setReportLocation] = useState('');
+  const [media, setMedia] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+
+  // 2FA State
+  const [verified, setVerified] = useState(() => sessionStorage.getItem('mobile_2fa') === 'true');
+  const [otp, setOtp] = useState('');
+  const [otpRequested, setOtpRequested] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+
+  // Offline State
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [offlineQueue, setOfflineQueue] = useState<any[]>(() => {
+    try { return JSON.parse(localStorage.getItem('offline_reports') || '[]'); } catch { return []; }
+  });
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
+  }, []);
+
+  useEffect(() => {
+    if (isOnline && offlineQueue.length > 0) {
+      const flush = async () => {
+        let q = [...offlineQueue];
+        let synced = 0;
+        for (let i = 0; i < q.length; i++) {
+          try {
+            await fetch('/api/approvals', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(q[i]),
+            });
+            q = q.slice(i + 1); // remove sent item
+            i = -1; // restart from head of remaining queue
+            synced++;
+            localStorage.setItem('offline_reports', JSON.stringify(q)); // persist immediately
+          } catch { break; }
+        }
+        setOfflineQueue(q);
+        if (synced > 0) toast(`סונכרנו ${synced} דיווחים בהצלחה`, 'success');
+      };
+      flush();
+    }
+  }, [isOnline]); // intentionally re-run only when coming back online
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const isImage = file.type.startsWith('image/');
+    const isVid = file.type.startsWith('video/');
+    if (!isImage && !isVid) { toast('רק תמונות וסרטונים נתמכים', 'error'); return; }
+
+    try {
+      if (isImage) {
+        await new Promise<void>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const MAX_DIM = 1200;
+              let w = img.width, h = img.height;
+              if (w > h && w > MAX_DIM) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
+              else if (h > MAX_DIM) { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
+              canvas.width = w; canvas.height = h;
+              canvas.getContext('2d')?.drawImage(img, 0, 0, w, h);
+              setMedia(canvas.toDataURL('image/jpeg', 0.82));
+              resolve();
+            };
+            img.onerror = reject;
+            img.src = ev.target?.result as string;
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      } else {
+        // upload video to server
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('/api/media/upload', { method: 'POST', body: fd });
+        if (!res.ok) throw new Error('upload failed');
+        const { url } = await res.json();
+        setMedia(url as string);
+      }
+    } catch {
+      toast('שגיאה בעיבוד הקובץ', 'error');
+    }
+    e.target.value = '';
+  };
 
   const handleSubmitReport = async () => {
     if (!reportText.trim()) return;
+    const payload = { author: 'נטע פרץ', text: reportText + (reportLocation ? ` (מיקום: ${reportLocation})` : ''), media };
+
+    if (!isOnline) {
+      const newQueue = [...offlineQueue, payload];
+      setOfflineQueue(newQueue);
+      localStorage.setItem('offline_reports', JSON.stringify(newQueue));
+      toast('אין קליטה - נשמר מקומית ויסונכרן אוטומטית כשתחזור הרשת', 'info');
+      setReportText('');
+      setReportLocation('');
+      setMedia(null);
+      return;
+    }
+
     setSending(true);
     try {
       const res = await fetch('/api/approvals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ author: 'נטע פרץ', text: reportText }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         toast('הדיווח נשלח לאישור מוקדן', 'success');
         setReportText('');
+        setReportLocation('');
+        setMedia(null);
       } else {
         toast('שגיאה בשליחת הדיווח', 'error');
       }
@@ -30,6 +137,92 @@ export function MobileScreen({ data }: { data: { activeEvent: { startedAt: numbe
       setSending(false);
     }
   };
+
+  const handleRequestOTP = async () => {
+    setOtpLoading(true);
+    try {
+      const res = await fetch('/api/mobile/request-otp', { method: 'POST' });
+      if (res.ok) {
+        setOtpRequested(true);
+        toast('קוד נשלח למוקדן — בקש ממנו את הקוד', 'info');
+      } else {
+        toast('שגיאה בבקשת קוד', 'error');
+      }
+    } catch {
+      toast('שגיאת תקשורת', 'error');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOtpLoading(true);
+    try {
+      const res = await fetch('/api/mobile/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: otp }),
+      });
+      if (res.ok) {
+        sessionStorage.setItem('mobile_2fa', 'true');
+        setVerified(true);
+        toast('אומתת בהצלחה', 'success');
+      } else {
+        const data = await res.json();
+        toast(data.error || 'קוד שגוי', 'error');
+        setOtp('');
+      }
+    } catch {
+      toast('שגיאת תקשורת', 'error');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  if (!verified) {
+    return (
+      <div className="phone-stage">
+        <div className="phone">
+          <div className="phone-screen" style={{ background: '#0e131b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <Icon name="Shield" lg />
+            <h2 style={{ fontSize: 20, marginTop: 16 }}>אימות כניסה לשטח</h2>
+            <p style={{ fontSize: 13, color: 'var(--ink-3)', textAlign: 'center', marginBottom: 24 }}>
+              {otpRequested ? 'הזן את הקוד שקיבלת מהמוקדן' : 'לחץ לבקשת קוד חד-פעמי מהמוקד'}
+            </p>
+            {!otpRequested ? (
+              <button
+                className="btn brand"
+                style={{ justifyContent: 'center', width: '100%' }}
+                onClick={handleRequestOTP}
+                disabled={otpLoading}
+              >
+                {otpLoading ? 'שולח בקשה...' : 'בקש קוד OTP מהמוקד'}
+              </button>
+            ) : (
+              <form onSubmit={handleVerifyOTP} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <input
+                  type="number"
+                  autoFocus
+                  className="input mono"
+                  placeholder="קוד 6 ספרות"
+                  value={otp}
+                  onChange={e => setOtp(e.target.value)}
+                  style={{ textAlign: 'center', fontSize: 24, letterSpacing: '0.2em' }}
+                />
+                <button type="submit" className="btn brand" style={{ justifyContent: 'center' }} disabled={otp.length < 6 || otpLoading}>
+                  {otpLoading ? 'מאמת...' : 'אמת והיכנס'}
+                </button>
+                <button type="button" className="btn ghost" style={{ justifyContent: 'center', fontSize: 12 }} onClick={() => { setOtpRequested(false); setOtp(''); }}>
+                  בקש קוד חדש
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="phone-stage">
@@ -50,7 +243,8 @@ export function MobileScreen({ data }: { data: { activeEvent: { startedAt: numbe
         <div className="phone-screen">
           <div className="phone-status">
             <span>{fmtHM(now)}</span>
-            <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span style={{ display: 'flex', gap: 6, alignItems: 'center', color: isOnline ? 'inherit' : '#ffb4b4' }}>
+              {!isOnline && <span style={{ fontSize: 10 }}>Offline</span>}
               <Icon name="Wifi" />
             </span>
           </div>
@@ -63,6 +257,11 @@ export function MobileScreen({ data }: { data: { activeEvent: { startedAt: numbe
                 מוקד שומרון
               </div>
               <div style={{ marginRight: 'auto' }} />
+              {offlineQueue.length > 0 && (
+                <div className="statepill" style={{ fontSize: 10, padding: '3px 8px', background: 'rgba(245,165,36,.1)', borderColor: 'rgba(245,165,36,.4)', color: '#ffd07a' }}>
+                  ממתינים: {offlineQueue.length}
+                </div>
+              )}
               <div className="statepill alert" style={{ fontSize: 10, padding: '3px 8px' }}>
                 <span className="led" />חירום
               </div>
@@ -112,17 +311,28 @@ export function MobileScreen({ data }: { data: { activeEvent: { startedAt: numbe
                 <div className="field">
                   <label>מיקום</label>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <input className="input mono" defaultValue='נ"צ 1672/1834' />
-                    <button className="btn icon"><Icon name="Pin" /></button>
+                    <input className="input mono" placeholder='נ"צ או תיאור' value={reportLocation} onChange={e => setReportLocation(e.target.value)} />
+                    <button className="btn icon" onClick={() => setReportLocation('נ"צ 1672/1834')}><Icon name="Pin" /></button>
                   </div>
                 </div>
                 <div className="field">
                   <label>מדיה</label>
-                  <div style={{ border: '1px dashed var(--line-2)', borderRadius: 8, padding: 18, display: 'grid', placeItems: 'center', gap: 6, color: 'var(--ink-3)', fontSize: 12 }}>
-                    <Icon name="Image" lg />
-                    <div>גרור קובץ או הקלק לבחירה</div>
-                    <div className="mono" style={{ fontSize: 10 }}>מקס׳ 10MB · יכווץ אוטומטית</div>
-                  </div>
+                  <label style={{ border: '1px dashed var(--line-2)', borderRadius: 8, padding: 18, display: 'grid', placeItems: 'center', gap: 6, color: 'var(--ink-3)', fontSize: 12, cursor: 'pointer', overflow: 'hidden', position: 'relative' }}>
+                    {media ? (
+                      media.startsWith('data:video/') || /\.(mp4|webm|mov)$/i.test(media) ? (
+                        <video src={media} muted style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 6 }} />
+                      ) : (
+                        <img src={media} style={{ width: '100%', maxHeight: 200, objectFit: 'contain' }} />
+                      )
+                    ) : (
+                      <>
+                        <Icon name="Image" lg />
+                        <div>הקלק לבחירת תמונה / סרטון</div>
+                        <div className="mono" style={{ fontSize: 10 }}>תמונות מכווצות אוטומטית · סרטונים עד 200MB</div>
+                      </>
+                    )}
+                    <input type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={handleFileChange} />
+                  </label>
                 </div>
                 <div style={{ padding: 10, background: 'rgba(245,165,36,.08)', border: '1px solid rgba(245,165,36,.3)', borderRadius: 6, fontSize: 11, color: '#ffd07a' }}>
                   <Icon name="Bell" /> הדיווח יישלח לאישור מוקדן לפני פרסום למסך

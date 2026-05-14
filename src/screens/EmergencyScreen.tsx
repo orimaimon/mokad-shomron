@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtTime, elapsed } from '../hooks/useClock';
 import { MokadData, ActiveEvent } from '../types';
-import { cn } from '../lib/utils';
+import { cn, parseMapCoords } from '../lib/utils';
 import { motion } from 'motion/react';
 import { toast } from '../components/Toast';
+import { MapPicker } from '../components/MapPicker';
 
 interface EmergencyScreenProps {
   data: MokadData;
@@ -12,17 +13,6 @@ interface EmergencyScreenProps {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────
-
-function parseMapCoords(raw: string): string {
-  if (!raw?.trim()) return '';
-  const direct = raw.trim().match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
-  if (direct) return `${direct[1]},${direct[2]}`;
-  const atCoords = raw.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-  if (atCoords) return `${atCoords[1]},${atCoords[2]}`;
-  const qCoords = raw.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-  if (qCoords) return `${qCoords[1]},${qCoords[2]}`;
-  return '';
-}
 
 function osmEmbedUrl(coords: string): string {
   const [lat, lng] = coords.split(',').map(Number);
@@ -52,6 +42,8 @@ function CasualtyCard({ label, value, color, wide = false }: {
 function UpdateSituationModal({ event, onClose, onSave }: {
   event: ActiveEvent; onClose: () => void; onSave: () => void;
 }) {
+  const [loading, setLoading] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [formData, setFormData] = useState({
     dead: event.dead || 0,
     critical: event.critical || 0,
@@ -63,7 +55,6 @@ function UpdateSituationModal({ event, onClose, onSave }: {
     description: event.description || '',
     map_coords: event.map_coords || '',
   });
-  const [loading, setLoading] = useState(false);
 
   const numField = (label: string, key: keyof typeof formData, color?: string) => (
     <div className="field">
@@ -83,60 +74,78 @@ function UpdateSituationModal({ event, onClose, onSave }: {
       const res = await fetch('/api/emergency/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: event.id, ...formData }),
+        body: JSON.stringify({ id: event.id, ...formData, version: event.version }),
       });
       if (res.ok) {
         onSave();
         toast('תמונת מצב עודכנה בהצלחה', 'success');
+      } else if (res.status === 409) {
+        toast('האירוע עודכן על ידי משתמש אחר. אנא סגור ורענן.', 'error');
+      } else {
+        toast('שגיאה בעדכון תמונת מצב', 'error');
       }
     } catch { toast('שגיאה בעדכון תמונת מצב', 'error'); }
     finally { setLoading(false); }
   };
 
   return (
-    <div className="scrim" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
-        <div className="h"><Icon name="Edit" /><h3>עדכון תמונת מצב — {event.id}</h3></div>
-        <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
-          <div className="b" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-              {numField('הרוגים', 'dead', '#94a3b8')}
-              {numField('אנושים', 'critical', '#ef4444')}
-              {numField('בינוני', 'serious', '#f97316')}
-              {numField('קל', 'light', '#eab308')}
-              {numField('נעדרים', 'missing', '#3b82f6')}
-              {numField('לכודים', 'trapped', '#8b5cf6')}
-            </div>
-            {numField('טרם טופלו', 'untreated')}
-            <div className="field">
-              <label>תיאור ופרטים</label>
-              <textarea
-                className="textarea" style={{ height: 90 }}
-                value={formData.description}
-                onChange={e => setFormData({ ...formData, description: e.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label>נ"צ / קישור Google Maps</label>
-              <input
-                className={cn("input", formData.map_coords && !parseMapCoords(formData.map_coords) && "invalid-input")}
-                style={formData.map_coords && !parseMapCoords(formData.map_coords) ? { borderColor: 'var(--red)' } : {}}
-                placeholder="32.0853, 34.7818  או הדבק קישור מ-Google Maps"
-                value={formData.map_coords}
-                onChange={e => setFormData({ ...formData, map_coords: e.target.value })}
-              />
-              <div style={{ fontSize: 11, color: formData.map_coords && !parseMapCoords(formData.map_coords) ? 'var(--red)' : 'var(--ink-4)', marginTop: 4 }}>
-                {formData.map_coords && parseMapCoords(formData.map_coords) ? '✅ פורמט זוהה ותקין' : 'הדבק קישור שיתוף מ-Google Maps או קואורדינטות lat, lng'}
+    <>
+      <div className="scrim" onClick={onClose}>
+        <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+          <div className="h"><Icon name="Edit" /><h3>עדכון תמונת מצב — {event.id}</h3></div>
+          <form onSubmit={e => { e.preventDefault(); handleSave(); }}>
+            <div className="b" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                {numField('הרוגים', 'dead', '#94a3b8')}
+                {numField('אנושים', 'critical', '#ef4444')}
+                {numField('בינוני', 'serious', '#f97316')}
+                {numField('קל', 'light', '#eab308')}
+                {numField('נעדרים', 'missing', '#3b82f6')}
+                {numField('לכודים', 'trapped', '#8b5cf6')}
+              </div>
+              {numField('טרם טופלו', 'untreated')}
+              <div className="field">
+                <label>תיאור ופרטים</label>
+                <textarea
+                  className="textarea" style={{ height: 90 }}
+                  value={formData.description}
+                  onChange={e => setFormData({ ...formData, description: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>נ"צ / קואורדינטות</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    className={cn("input mono", formData.map_coords && !parseMapCoords(formData.map_coords) && "invalid-input")}
+                    style={{ flex: 1, ...(formData.map_coords && !parseMapCoords(formData.map_coords) ? { borderColor: 'var(--red)' } : {}) }}
+                    placeholder="32.085, 34.781 או קישור Maps"
+                    value={formData.map_coords}
+                    onChange={e => setFormData({ ...formData, map_coords: e.target.value })}
+                  />
+                  <button type="button" className="btn icon ghost" onClick={() => setShowMapPicker(true)} data-tooltip="בחר מהמפה">
+                    <Icon name="Map" />
+                  </button>
+                </div>
+                <div style={{ fontSize: 11, color: formData.map_coords && !parseMapCoords(formData.map_coords) ? 'var(--red)' : 'var(--ink-4)', marginTop: 4 }}>
+                  {formData.map_coords && parseMapCoords(formData.map_coords) ? '✅ פורמט זוהה ותקין' : 'הדבק קישור שיתוף מ-Google Maps או לחץ לבחירה מהמפה'}
+                </div>
               </div>
             </div>
-          </div>
-          <div className="f">
-            <button type="submit" className="btn brand" disabled={loading}>{loading ? 'שומר...' : 'שמור שינויים'}</button>
-            <button type="button" className="btn ghost" onClick={onClose}>ביטול</button>
-          </div>
-        </form>
+            <div className="f">
+              <button type="submit" className="btn brand" disabled={loading}>{loading ? 'שומר...' : 'שמור שינויים'}</button>
+              <button type="button" className="btn ghost" onClick={onClose}>ביטול</button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+      {showMapPicker && (
+        <MapPicker 
+          initialCoords={formData.map_coords ? parseMapCoords(formData.map_coords) : undefined} 
+          onSelect={(c) => { setFormData({ ...formData, map_coords: c }); setShowMapPicker(false); }} 
+          onClose={() => setShowMapPicker(false)} 
+        />
+      )}
+    </>
   );
 }
 
@@ -241,6 +250,34 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
   const totalMissing = (ev.trapped || 0) + (ev.missing || 0);
   const mapCoords = parseMapCoords(ev.map_coords || '');
 
+  const handleGenerateSitRep = async () => {
+    const report = `[תמונת מצב מבצעית - מוקד שומרון]
+זמן הפקה: ${new Date().toLocaleString('he-IL')}
+אירוע: ${ev.type} (מזהה: ${ev.id})
+מיקום: ${ev.location} ${ev.sceneName ? `- ${ev.sceneName}` : ''} ${ev.grid ? `(נ"צ ${ev.grid})` : ''}
+
+סטטוס נפגעים (סה"כ ${totalCas}):
+הרוגים: ${ev.dead || 0} | אנוש: ${ev.critical || 0} | קשה: ${ev.serious || 0} | קל: ${ev.light || 0} | טרם טופלו: ${ev.untreated || 0}
+לכודים/נעדרים: ${totalMissing}
+
+כוחות בשטח:
+${(ev.forces || []).map(f => `- ${f.name} (x${f.count})`).join('\n') || 'אין כוחות מוזנים'}
+
+סטטוס פינויים:
+${(ev.evac || []).map((e: { who: string; by: string; to: string; state: string }) => `- ${e.who} מפונה ע"י ${e.by} אל ${e.to} (מצב: ${e.state})`).join('\n') || 'אין פינויים פעילים'}
+
+תיאור ופרטים נוספים:
+${ev.description || 'לא הוזן תיאור'}
+`;
+
+    try {
+      await navigator.clipboard.writeText(report);
+      toast('תמונת המצב הועתקה ללוח (מוכן להדבקה בווטסאפ)', 'success');
+    } catch {
+      toast('שגיאה בהעתקה ללוח', 'error');
+    }
+  };
+
   return (
     <div className="emerg-grid">
       {showUpdate && (
@@ -272,6 +309,9 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
               <div className="l">שעה נוכחית</div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginRight: 8 }}>
+              <button className="btn brand sm" onClick={handleGenerateSitRep} style={{ whiteSpace: 'nowrap' }} data-tooltip="העתק דו״ח תמונת מצב ללוח">
+                <Icon name="FileText" style={{ width: 13 }} /> הפק תמונת מצב (SitRep)
+              </button>
               <button className="btn primary sm" onClick={() => setShowUpdate(true)} style={{ whiteSpace: 'nowrap' }}>
                 <Icon name="Edit" style={{ width: 13 }} /> עדכון תמונת מצב
               </button>
@@ -285,10 +325,16 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
 
       {/* ── COL 1: SITUATION + EVAC ──────────────────────────── */}
       <div className="col">
+        {(!ev.forces || ev.forces.length === 0) && (
+          <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid var(--red)', padding: '10px 14px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 10, color: '#ffb4b4', fontSize: 13, marginBottom: 15, animation: 'urgentGlow 2s infinite' }}>
+            <Icon name="AlertTriangle" style={{ width: 16 }} />
+            <div><strong>התרעה:</strong> לא הוזנו כוחות לאירוע! אנא עדכן תמונת מצב.</div>
+          </div>
+        )}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="panel" style={{ flex: '0 0 auto' }}>
           <div className="panel-h">
             <h3>תמונת מצב</h3>
-            <span className="tag" style={{ marginRight: 4 }}>עודכן {ev.snapshotAt}</span>
+            <span className={cn("time-since", "recent")} style={{ marginRight: 4 }}>עודכן ב-{ev.snapshotAt}</span>
           </div>
           <div className="panel-b" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {/* summary row */}
@@ -321,30 +367,34 @@ export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
             <div className="spacer" />
             <button className="btn sm" onClick={() => setShowEvac(true)}><Icon name="Plus" /> הוספת פינוי</button>
           </div>
-          <div className="panel-b" style={{ padding: 0 }}>
-            <table className="tbl">
-              <thead>
-                <tr><th>נפגעים</th><th>גורם</th><th>יעד</th><th>מצב</th></tr>
-              </thead>
-              <tbody>
+          <div className="panel-b" style={{ padding: 16, overflowY: 'auto' }}>
+            {(ev.evac || []).length === 0 ? (
+              <div className="empty-state" style={{ padding: 20 }}>
+                <Icon name="Truck" className="empty-icon" style={{ width: 24, height: 24 }} />
+                <span>אין פינויים רשומים</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {(ev.evac || []).map((e, i) => (
-                  <tr key={i}>
-                    <td>{e.who}</td>
-                    <td>
-                      <span className="row-flex">
-                        {e.by?.includes('מסוק') ? <Icon name="Activity" /> : <Icon name="Truck" />}
-                        {e.by}
-                      </span>
-                    </td>
-                    <td>{e.to}</td>
-                    <td><span className="tag green">{e.state}</span></td>
-                  </tr>
+                  <div key={i} style={{ display: 'flex', gap: 12, paddingBottom: 16, borderBottom: i < ev.evac.length - 1 ? '1px dashed var(--border-1)' : 'none' }}>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-3)', border: '1px solid var(--border-1)', display: 'grid', placeItems: 'center', color: 'var(--ink-2)' }}>
+                      {e.by?.includes('מסוק') ? <Icon name="Activity" style={{ width: 14 }} /> : <Icon name="Truck" style={{ width: 14 }} />}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontWeight: 600, color: 'var(--ink-1)', fontSize: 14 }}>{e.who}</span>
+                        <span className={cn("tag", e.state === 'בדרך' ? 'amber' : 'green')}>{e.state}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--ink-3)' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="Shield" style={{ width: 11 }} /> {e.by}</span>
+                        <span>→</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="Map" style={{ width: 11 }} /> {e.to}</span>
+                      </div>
+                    </div>
+                  </div>
                 ))}
-                {(ev.evac || []).length === 0 && (
-                  <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--ink-4)', padding: 16 }}>אין פינויים רשומים</td></tr>
-                )}
-              </tbody>
-            </table>
+              </div>
+            )}
           </div>
         </motion.div>
       </div>

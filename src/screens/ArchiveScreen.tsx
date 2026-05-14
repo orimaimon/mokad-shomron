@@ -3,7 +3,7 @@ import { Icon } from '../components/Icons';
 import { cn } from '../lib/utils';
 import { MokadData, DBRosterMember, DBIncident, DBFeedItem, Force, Evacuation } from '../types';
 
-type ReportType = 'daily' | 'event' | 'roster';
+type ReportType = 'daily' | 'event' | 'roster' | 'shift' | 'osint';
 
 interface ReportHeaderProps {
   title: string;
@@ -43,9 +43,28 @@ interface EventReportData {
   forces: Force[];
   evac: Evacuation[];
   feed: DBFeedItem[];
+  media: DBMediaRow[];
 }
 
-type ReportData = DailyReportData | EventReportData;
+interface DBMediaRow {
+  id: number;
+  event_id: string;
+  kind: string;
+  cap: string;
+  time: string;
+  cls: string;
+  dur: string | null;
+}
+
+interface OsintReportData {
+  reportKind: 'osint';
+  generated_at: string;
+  date: string;
+  filtered_date: string | null;
+  items: DBFeedItem[];
+}
+
+type ReportData = DailyReportData | EventReportData | ShiftReportData | OsintReportData;
 
 interface ArchivedEvent {
   id: string;
@@ -54,6 +73,30 @@ interface ArchivedEvent {
   scene_name: string;
   started_at: number;
   is_active: number;
+}
+
+interface ArchivedShift {
+  id: number;
+  manager_name: string;
+  start_time: string;
+  end_time: string | null;
+  status: string;
+  dispatchers: string[];
+}
+
+interface ShiftReportData {
+  reportKind: 'shift';
+  id: number;
+  manager_name: string;
+  start_time: string;
+  end_time: string | null;
+  status: string;
+  open_incidents_count: number;
+  out_of_sector_count: number;
+  hardware_status: string;
+  notes: string;
+  dispatchers: string[];
+  incidents: DBIncident[];
 }
 
 // ── Report content components ─────────────────────────────────────────────
@@ -288,6 +331,27 @@ function EventReportContent({ data }: { data: EventReportData }) {
         </>
       )}
 
+      {/* Media */}
+      {data.media && data.media.length > 0 && (
+        <>
+          <h2>תיעוד מדיה</h2>
+          <table>
+            <thead><tr><th>שעה</th><th>סוג</th><th>תיאור</th><th>סיווג</th><th>משך</th></tr></thead>
+            <tbody>
+              {data.media.map(m => (
+                <tr key={m.id}>
+                  <td style={{ fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{m.time}</td>
+                  <td>{m.kind === 'photo' ? 'תמונה' : m.kind === 'video' ? 'וידאו' : m.kind}</td>
+                  <td>{m.cap || '—'}</td>
+                  <td>{m.cls || '—'}</td>
+                  <td style={{ fontFamily: 'monospace' }}>{m.dur || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
       {/* Feed timeline */}
       {data.feed && data.feed.length > 0 && (
         <>
@@ -370,6 +434,188 @@ function RosterReportContent({ data }: { data: DailyReportData }) {
   );
 }
 
+// ── OSINT Report ─────────────────────────────────────────────────────────
+
+function OsintReportContent({ data }: { data: OsintReportData }) {
+  const bySrc = data.items.reduce<Record<string, number>>((acc, item) => {
+    acc[item.src] = (acc[item.src] || 0) + 1;
+    return acc;
+  }, {});
+
+  return (
+    <>
+      <ReportHeader
+        title="דוח מודיעין פתוח (OSINT)"
+        date={data.date}
+        generatedAt={data.generated_at}
+      />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 20, padding: '12px 0', borderBottom: '1px solid #ddd' }}>
+        {[
+          { l: 'רשומות OSINT', v: data.items.length },
+          { l: 'מקורות שונים', v: Object.keys(bySrc).length },
+          { l: 'דחופות', v: data.items.filter(i => i.urgent).length },
+        ].map(s => (
+          <div key={s.l} style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1 }}>{s.v}</div>
+            <div style={{ fontSize: 11, color: '#666', marginTop: 3 }}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {data.items.length === 0 ? (
+        <p style={{ color: '#666' }}>לא נרשמו רשומות OSINT לתאריך זה</p>
+      ) : (
+        <>
+          <h2>1. רשומות מקורות פתוחים</h2>
+          <table>
+            <thead>
+              <tr><th>שעה</th><th>מקור</th><th>תוכן</th><th>דחיפות</th></tr>
+            </thead>
+            <tbody>
+              {data.items.map(item => (
+                <tr key={item.id} style={{ background: item.urgent ? '#fff3f3' : undefined }}>
+                  <td style={{ fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{item.time}</td>
+                  <td style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{item.src}</td>
+                  <td>{item.text}</td>
+                  <td style={{ textAlign: 'center' }}>{item.urgent ? '⚠️' : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <h2>2. התפלגות לפי מקור</h2>
+          <table>
+            <thead><tr><th>מקור</th><th>כמות</th></tr></thead>
+            <tbody>
+              {Object.entries(bySrc).sort((a, b) => b[1] - a[1]).map(([src, count]) => (
+                <tr key={src}>
+                  <td style={{ fontWeight: 600 }}>{src}</td>
+                  <td style={{ fontFamily: 'monospace' }}>{count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      <Signature />
+    </>
+  );
+}
+
+// ── Shift Report ─────────────────────────────────────────────────────────
+
+function ShiftReportContent({ data }: { data: ShiftReportData }) {
+  const start = new Date(data.start_time);
+  const end = data.end_time ? new Date(data.end_time) : null;
+  const fmtDt = (d: Date) => d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const duration = end
+    ? (() => { const m = Math.round((end.getTime() - start.getTime()) / 60000); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} שע׳`; })()
+    : 'פעילה';
+
+  let hw: Record<string, unknown> = {};
+  try { hw = JSON.parse(data.hardware_status); } catch {}
+
+  const openInc = data.incidents.filter(i => i.status !== 'הסתיים');
+
+  return (
+    <>
+      <ReportHeader
+        title="דוח סיכום משמרת"
+        subtitle={`מזהה: ${data.id} · ${data.status === 'active' ? 'פעילה' : 'סגורה'}`}
+        date={fmtDt(start)}
+        generatedAt={new Date().toLocaleString('he-IL')}
+      />
+
+      <table style={{ marginBottom: 16 }}>
+        <tbody>
+          <tr>
+            <td style={{ fontWeight: 700, width: '20%' }}>קצין תורן</td>
+            <td>{data.manager_name}</td>
+            <td style={{ fontWeight: 700 }}>מוקדנים</td>
+            <td>{data.dispatchers.length > 0 ? data.dispatchers.join(', ') : '—'}</td>
+          </tr>
+          <tr>
+            <td style={{ fontWeight: 700 }}>תחילת משמרת</td>
+            <td style={{ fontFamily: 'monospace' }}>{fmtDt(start)}</td>
+            <td style={{ fontWeight: 700 }}>סיום משמרת</td>
+            <td style={{ fontFamily: 'monospace' }}>{end ? fmtDt(end) : '—'}</td>
+          </tr>
+          <tr>
+            <td style={{ fontWeight: 700 }}>משך</td>
+            <td>{duration}</td>
+            <td style={{ fontWeight: 700 }}>סטטוס</td>
+            <td>{data.status === 'active' ? 'פעילה' : 'סגורה'}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>1. סיכום כמותי</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 20, padding: '12px 0', borderBottom: '1px solid #ddd' }}>
+        {[
+          { l: 'אירועים סה"כ', v: data.incidents.length },
+          { l: 'אירועים פתוחים בסיום', v: data.open_incidents_count },
+          { l: 'מחוץ לגזרה בסיום', v: data.out_of_sector_count },
+        ].map(s => (
+          <div key={s.l} style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1 }}>{s.v}</div>
+            <div style={{ fontSize: 11, color: '#666', marginTop: 3 }}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+
+      <h2>2. מצב ציוד</h2>
+      <table style={{ marginBottom: 16 }}>
+        <tbody>
+          <tr>
+            {['cameras', 'vehicles', 'comms'].map(k => (
+              <td key={k} style={{ textAlign: 'center', padding: '6px 14px' }}>
+                <div style={{ fontWeight: 700, color: hw[k] ? '#16a34a' : '#dc2626' }}>{hw[k] ? '✓' : '✗'}</div>
+                <div style={{ fontSize: 11, color: '#666' }}>{k === 'cameras' ? 'מצלמות' : k === 'vehicles' ? 'רכבים' : 'קשר'}</div>
+              </td>
+            ))}
+            {!!hw['other'] && (
+              <td style={{ padding: '6px 14px' }}>
+                <div style={{ fontSize: 12 }}>{String(hw['other'])}</div>
+              </td>
+            )}
+          </tr>
+        </tbody>
+      </table>
+
+      {data.notes && (
+        <>
+          <h2>3. הערות מסירת משמרת</h2>
+          <p style={{ background: '#f5f5f5', padding: '10px 14px', borderRadius: 4, fontSize: 13, whiteSpace: 'pre-wrap' }}>{data.notes}</p>
+        </>
+      )}
+
+      {data.incidents.length > 0 && (
+        <>
+          <h2>{data.notes ? '4' : '3'}. אירועים במהלך המשמרת</h2>
+          <table>
+            <thead><tr><th>שעה</th><th>סוג</th><th>מיקום</th><th>סטטוס</th><th>חומרה</th></tr></thead>
+            <tbody>
+              {data.incidents.map(i => (
+                <tr key={i.id} style={{ background: openInc.includes(i) ? '#fff3f3' : undefined }}>
+                  <td style={{ fontFamily: 'monospace' }}>{new Date(i.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</td>
+                  <td>{i.type}</td>
+                  <td>{i.location}</td>
+                  <td><StatusBadge status={i.status} /></td>
+                  <td><SevLabel sev={i.severity} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      <Signature />
+    </>
+  );
+}
+
 // ── Signature block ───────────────────────────────────────────────────────
 
 function Signature() {
@@ -384,13 +630,20 @@ function Signature() {
 
 // ── Print wrapper (hidden on screen, shown during print) ──────────────────
 
+function ReportContent({ data }: { data: ReportData }) {
+  if (data.reportKind === 'daily') return <DailyReportContent data={data} />;
+  if (data.reportKind === 'event') return <EventReportContent data={data} />;
+  if (data.reportKind === 'roster') return <RosterReportContent data={data} />;
+  if (data.reportKind === 'shift') return <ShiftReportContent data={data} />;
+  if (data.reportKind === 'osint') return <OsintReportContent data={data} />;
+  return null;
+}
+
 function PrintWrap({ data }: { data: ReportData }) {
   return (
     <div className="print-wrap">
       <div className="report-paper" style={{ background: 'none', padding: 0 }}>
-        {data.reportKind === 'daily' && <DailyReportContent data={data} />}
-        {data.reportKind === 'event' && <EventReportContent data={data} />}
-        {data.reportKind === 'roster' && <RosterReportContent data={data} />}
+        <ReportContent data={data} />
       </div>
     </div>
   );
@@ -407,21 +660,34 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
   const [selectedEventId, setSelectedEventId] = useState('');
   const [archiveSearch, setArchiveSearch] = useState('');
   const [archiveStatus, setArchiveStatus] = useState('');
+  const [dailyDate, setDailyDate] = useState('');
+  const [shifts, setShifts] = useState<ArchivedShift[]>([]);
+  const [selectedShiftId, setSelectedShiftId] = useState('');
 
   useEffect(() => {
     fetch('/api/reports/events').then(r => r.json()).then(setEvents).catch(() => {});
+    fetch('/api/reports/shifts').then(r => r.json()).then(setShifts).catch(() => {});
   }, []);
 
   const generate = async () => {
     setLoading(true);
     try {
       if (reportType === 'daily' || reportType === 'roster') {
-        const res = await fetch('/api/reports/daily');
+        const qs = dailyDate ? `?date=${dailyDate}` : '';
+        const res = await fetch(`/api/reports/daily${qs}`);
         setReportData({ reportKind: reportType, ...(await res.json()) });
       } else if (reportType === 'event') {
         if (!selectedEventId) return;
         const res = await fetch(`/api/reports/event/${selectedEventId}`);
         setReportData({ reportKind: 'event', ...(await res.json()) });
+      } else if (reportType === 'shift') {
+        if (!selectedShiftId) return;
+        const res = await fetch(`/api/reports/shift/${selectedShiftId}`);
+        setReportData({ reportKind: 'shift', ...(await res.json()) });
+      } else if (reportType === 'osint') {
+        const qs = dailyDate ? `?date=${dailyDate}` : '';
+        const res = await fetch(`/api/reports/osint${qs}`);
+        setReportData({ reportKind: 'osint', ...(await res.json()) });
       }
     } finally {
       setLoading(false);
@@ -469,6 +735,8 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
                 { v: 'daily', icon: 'Pulse', l: 'דוח שגרה יומי', d: 'אירועים, כוח אדם, יומן' },
                 { v: 'event', icon: 'Siren', l: 'דוח אירוע חירום', d: 'סיכום מלא לאירוע ספציפי' },
                 { v: 'roster', icon: 'Users', l: 'דוח כוח אדם', d: 'רשימת בעלי תפקידים ומחליפים' },
+                { v: 'shift', icon: 'Clock', l: 'דוח סיכום משמרת', d: 'אירועים, ציוד והערות מסירה' },
+        { v: 'osint', icon: 'Globe', l: 'דוח מודיעין פתוח', d: 'רשומות OSINT מיומן המבצעים' },
               ] as const).map(opt => (
                 <label
                   key={opt.v}
@@ -492,6 +760,19 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
                 </label>
               ))}
 
+              {(reportType === 'daily' || reportType === 'roster' || reportType === 'osint') && (
+                <div className="field">
+                  <label>תאריך (ריק = היום)</label>
+                  <input
+                    type="date"
+                    className="input"
+                    value={dailyDate}
+                    onChange={e => setDailyDate(e.target.value)}
+                    max={new Date().toISOString().slice(0, 10)}
+                  />
+                </div>
+              )}
+
               {reportType === 'event' && (
                 <div className="field">
                   <label>בחר אירוע</label>
@@ -499,7 +780,21 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
                     <option value="">— בחר אירוע —</option>
                     {events.map(ev => (
                       <option key={ev.id} value={ev.id}>
-                        {ev.id} · {ev.type} · {ev.location} {!ev.is_active ? '(סגור)' : '(פעיל)'}
+                        {ev.started_at ? new Date(ev.started_at).toLocaleDateString('he-IL') + ' · ' : ''}{ev.type} · {ev.location} {!ev.is_active ? '(סגור)' : '(פעיל)'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {reportType === 'shift' && (
+                <div className="field">
+                  <label>בחר משמרת</label>
+                  <select className="input" value={selectedShiftId} onChange={e => setSelectedShiftId(e.target.value)}>
+                    <option value="">— בחר משמרת —</option>
+                    {shifts.map(s => (
+                      <option key={s.id} value={String(s.id)}>
+                        {new Date(s.start_time).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · {s.manager_name} {s.status === 'active' ? '(פעילה)' : '(סגורה)'}
                       </option>
                     ))}
                   </select>
@@ -509,7 +804,7 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
               <button
                 className="btn brand"
                 onClick={generate}
-                disabled={loading || (reportType === 'event' && !selectedEventId)}
+                disabled={loading || (reportType === 'event' && !selectedEventId) || (reportType === 'shift' && !selectedShiftId) || false}
                 style={{ justifyContent: 'center', padding: '10px' }}
               >
                 <Icon name="Doc" /> {loading ? 'מכין דוח...' : 'הפק תצוגה מקדימה'}
@@ -569,6 +864,11 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
                   </div>
                   <div style={{ fontWeight: 600, fontSize: 13, marginTop: 3 }}>{ev.type}</div>
                   <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{ev.location} · {ev.scene_name}</div>
+                  {ev.started_at ? (
+                    <div style={{ fontSize: 10, color: 'var(--ink-4)', marginTop: 2, fontFamily: 'var(--mono)' }}>
+                      {new Date(ev.started_at).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  ) : null}
                 </div>
                 ));
               })()}
@@ -587,6 +887,8 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
                 {reportData.reportKind === 'daily' && 'דוח שגרה יומי'}
                 {reportData.reportKind === 'event' && `דוח אירוע · ${reportData.id}`}
                 {reportData.reportKind === 'roster' && 'דוח כוח אדם'}
+                {reportData.reportKind === 'shift' && `דוח משמרת · ${reportData.manager_name}`}
+                {reportData.reportKind === 'osint' && `דוח OSINT · ${reportData.date}`}
               </h3>
               <div className="spacer" />
               <button className="btn brand" onClick={handlePrint} style={{ gap: 8 }}>
@@ -595,9 +897,7 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
             </div>
             <div className="panel-b" style={{ flex: 1, overflow: 'auto', padding: 0 }}>
               <div className="report-paper">
-                {reportData.reportKind === 'daily' && <DailyReportContent data={reportData} />}
-                {reportData.reportKind === 'event' && <EventReportContent data={reportData} />}
-                {reportData.reportKind === 'roster' && <RosterReportContent data={reportData} />}
+                <ReportContent data={reportData} />
               </div>
             </div>
           </>

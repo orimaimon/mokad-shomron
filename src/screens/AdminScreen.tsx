@@ -13,7 +13,7 @@ interface User {
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '10px', borderRadius: 8,
-  background: 'var(--bg-2)', border: '1px solid var(--border-1)', color: 'white',
+  background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'var(--ink-1)',
 };
 
 // ── Users section ──────────────────────────────────────────────────────────

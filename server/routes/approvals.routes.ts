@@ -8,6 +8,7 @@ import {
   DBApproval,
 } from '../types.js';
 import { emit } from '../socket.js';
+import { logAction, auditUser } from '../audit.js';
 
 const router = Router();
 
@@ -21,11 +22,21 @@ router.get('/', requireAuth, (req, res) => {
 
 // POST /api/approvals — field reporter submits for approval (no auth required)
 router.post('/', validateBody(ApprovalAddSchema), (req, res) => {
-  const { author, text, scene, urgent = false } = req.body as ApprovalAddBody;
+  const body = req.body as ApprovalAddBody & { author: string };
+  const { author, text, scene, media, urgent = false } = body;
   const time = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
   const result = db.prepare(
-    'INSERT INTO approvals (time, author, text, scene, urgent) VALUES (?, ?, ?, ?, ?)'
-  ).run(time, author, text, scene ?? null, urgent ? 1 : 0);
+    'INSERT INTO approvals (time, author, text, scene, media, urgent) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(time, author, text, scene ?? null, media ?? null, urgent ? 1 : 0);
+
+  logAction({
+    ...auditUser(req),
+    actionType: 'create',
+    entityType: 'approval',
+    entityId: String(result.lastInsertRowid),
+    newState: { author, text, scene, media, urgent, time },
+  });
+
   emit('approvals:changed');
   res.json({ success: true, id: result.lastInsertRowid });
 });
@@ -36,10 +47,21 @@ router.post('/:id/approve', requireAuth, validateBody(ApprovalApproveSchema), (r
   const approval = db.prepare('SELECT * FROM approvals WHERE id = ?').get(id) as DBApproval | undefined;
   if (!approval) return res.status(404).json({ error: 'לא נמצא' });
 
-  const text = (req.body as ApprovalApproveBody).text ?? approval.text;
+  const approvalRow = approval as typeof approval & { text: string; author: string };
+  const text = (req.body as ApprovalApproveBody).text ?? approvalRow.text;
   const feedTime = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-  db.prepare('INSERT INTO feed (time, src, text, urgent) VALUES (?, ?, ?, ?)').run(feedTime, approval.author, text, approval.urgent);
+  db.prepare('INSERT INTO feed (time, src, text, urgent, media) VALUES (?, ?, ?, ?, ?)').run(feedTime, approvalRow.author, text, approval.urgent, approval.media);
   db.prepare('UPDATE approvals SET status = ? WHERE id = ?').run('approved', id);
+
+  logAction({
+    ...auditUser(req),
+    actionType: 'approve',
+    entityType: 'approval',
+    entityId: String(id),
+    previousState: approval,
+    newState: { ...approval, status: 'approved' },
+  });
+
   emit('approvals:changed');
   emit('feed:changed');
   res.json({ success: true });
@@ -48,8 +70,21 @@ router.post('/:id/approve', requireAuth, validateBody(ApprovalApproveSchema), (r
 // POST /api/approvals/:id/reject
 router.post('/:id/reject', requireAuth, (req, res) => {
   const { id } = req.params;
+  const approval = db.prepare('SELECT * FROM approvals WHERE id = ?').get(id) as DBApproval | undefined;
+  if (!approval) return res.status(404).json({ error: 'לא נמצא' });
+
   const result = db.prepare('UPDATE approvals SET status = ? WHERE id = ?').run('rejected', id);
   if (result.changes === 0) return res.status(404).json({ error: 'לא נמצא' });
+
+  logAction({
+    ...auditUser(req),
+    actionType: 'reject',
+    entityType: 'approval',
+    entityId: String(id),
+    previousState: approval,
+    newState: { ...approval, status: 'rejected' },
+  });
+
   emit('approvals:changed');
   res.json({ success: true });
 });

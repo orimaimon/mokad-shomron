@@ -3,6 +3,7 @@ import db from '../db.js';
 import { validateBody } from '../middlewares/validate.js';
 import { ShiftStartSchema, ShiftStartBody, ShiftEndSchema, ShiftEndBody, DBShiftLog } from '../types.js';
 import { emit } from '../socket.js';
+import { logAction, auditUser } from '../audit.js';
 
 const router = Router();
 
@@ -47,6 +48,14 @@ router.post('/start', validateBody(ShiftStartSchema), (req, res) => {
   const insertOp = db.prepare('INSERT OR IGNORE INTO shift_operators (name) VALUES (?)');
   dispatchers.forEach(name => insertOp.run(name));
 
+  logAction({
+    ...auditUser(req),
+    actionType: 'start',
+    entityType: 'shift',
+    entityId: String(result.lastInsertRowid),
+    newState: { manager_name, dispatchers, start_time },
+  });
+
   emit('shifts:changed');
   res.json({ success: true, id: result.lastInsertRowid });
 });
@@ -55,6 +64,8 @@ router.post('/start', validateBody(ShiftStartSchema), (req, res) => {
 router.post('/end', validateBody(ShiftEndSchema), (req, res) => {
   const { open_incidents_count, out_of_sector_count, hardware_status, notes, dispatchers } = req.body as ShiftEndBody;
   const end_time = new Date().toISOString();
+
+  const activeShift = db.prepare('SELECT * FROM shift_logs WHERE status = ?').get('active') as DBShiftLog | undefined;
 
   let result;
   if (dispatchers !== undefined) {
@@ -77,6 +88,16 @@ router.post('/end', validateBody(ShiftEndSchema), (req, res) => {
   }
 
   if (result.changes === 0) return res.status(400).json({ error: 'אין משמרת פעילה לסגירה' });
+
+  logAction({
+    ...auditUser(req),
+    actionType: 'end',
+    entityType: 'shift',
+    entityId: activeShift ? String(activeShift.id) : 'unknown',
+    previousState: activeShift,
+    newState: { open_incidents_count, out_of_sector_count, hardware_status, notes, end_time },
+  });
+
   emit('shifts:changed');
   res.json({ success: true });
 });
