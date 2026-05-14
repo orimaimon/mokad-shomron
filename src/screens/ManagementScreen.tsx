@@ -4,7 +4,7 @@ import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtHM } from '../hooks/useClock';
 import { MokadData, ApprovalRequest } from '../types';
 import { toast } from '../components/Toast';
-import { cn } from '../lib/utils';
+import { cn, mediaUrl } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 const SRC_TYPE_META = {
@@ -71,13 +71,13 @@ function MediaThumb({ src, onClick }: { src: string; onClick: () => void }) {
     >
       {video ? (
         <>
-          <video src={src} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <video src={mediaUrl(src)} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)' }}>
             <span style={{ fontSize: 18, color: '#fff' }}>▶</span>
           </div>
         </>
       ) : (
-        <img src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={mediaUrl(src)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       )}
     </div>
   );
@@ -101,7 +101,7 @@ function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
     >
       {video ? (
         <video
-          src={src}
+          src={mediaUrl(src)}
           controls
           autoPlay
           onClick={e => e.stopPropagation()}
@@ -109,7 +109,7 @@ function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
         />
       ) : (
         <img
-          src={src}
+          src={mediaUrl(src)}
           onClick={e => e.stopPropagation()}
           style={{ maxWidth: '92vw', maxHeight: '88vh', objectFit: 'contain', borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,.7)', cursor: 'default' }}
         />
@@ -484,12 +484,20 @@ export function ManagementScreen({ data }: { data: MokadData }) {
                       </div>
                     )}
                     {a.media && (
-                      <img
-                        src={a.media}
-                        onClick={() => setLightbox(a.media!)}
-                        style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line-2)', cursor: 'zoom-in', display: 'block' }}
-                        title="הצג תמונה"
-                      />
+                      isVideo(a.media) ? (
+                        <video
+                          src={mediaUrl(a.media)}
+                          controls
+                          style={{ width: '100%', maxHeight: 200, borderRadius: 8, border: '1px solid var(--line-2)', display: 'block' }}
+                        />
+                      ) : (
+                        <img
+                          src={mediaUrl(a.media)}
+                          onClick={() => setLightbox(a.media!)}
+                          style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line-2)', cursor: 'zoom-in', display: 'block' }}
+                          title="הצג תמונה"
+                        />
+                      )
                     )}
 
                     <div style={{ display: 'flex', gap: 6 }}>

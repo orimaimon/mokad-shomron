@@ -24,6 +24,13 @@ export function getRosterStateConfig(state: string): RosterStateConfig {
   return ROSTER_STATE_MAP[state as RosterStateKey] ?? { label: state, colorClass: 'red' };
 }
 
+export function mediaUrl(src: string | null | undefined): string {
+  if (!src) return '';
+  if (!src.startsWith('/uploads/')) return src;
+  const token = localStorage.getItem('token') ?? '';
+  return `${src}?t=${encodeURIComponent(token)}`;
+}
+
 export function parseMapCoords(raw: string): string {
   if (!raw?.trim()) return '';
   const direct = raw.trim().match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);

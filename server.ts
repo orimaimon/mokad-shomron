@@ -9,6 +9,7 @@ import { initSocket } from './server/socket.js';
 
 // Import domain routers
 import authRoutes from './server/routes/auth.routes.js';
+import { requireAuthQuery } from './server/middlewares/auth.js';
 import rosterRoutes from './server/routes/roster.routes.js';
 import incidentsRoutes from './server/routes/incidents.routes.js';
 import feedRoutes from './server/routes/feed.routes.js';
@@ -44,7 +45,7 @@ async function startServer() {
   app.use('/api/audit', auditRoutes);
   app.use('/api/mobile', mobileRoutes);
   app.use('/api/media', mediaRoutes);
-  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+  app.use('/uploads', requireAuthQuery, express.static(path.join(__dirname, 'uploads')));
 
   // --- VITE MIDDLEWARE ---
   if (process.env.NODE_ENV !== 'production') {

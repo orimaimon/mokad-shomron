@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtDate } from '../hooks/useClock';
 import { MokadData, RosterMember, RoutineIncident } from '../types';
-import { cn, getRosterStateConfig } from '../lib/utils';
+import { cn, getRosterStateConfig, mediaUrl } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from '../components/Toast';
 
@@ -786,9 +786,9 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange, showNewIn
                 {it.media && (
                   <div style={{ marginTop: 6 }}>
                     {/\.(mp4|webm|mov|avi)(\?.*)?$/i.test(it.media) || it.media.startsWith('data:video/') ? (
-                      <video src={it.media} controls style={{ maxWidth: '100%', maxHeight: 160, borderRadius: 6, display: 'block' }} />
+                      <video src={mediaUrl(it.media)} controls style={{ maxWidth: '100%', maxHeight: 160, borderRadius: 6, display: 'block' }} />
                     ) : (
-                      <img src={it.media} alt="" style={{ maxWidth: '100%', maxHeight: 160, borderRadius: 6, display: 'block', cursor: 'pointer', objectFit: 'cover' }} onClick={() => window.open(it.media!, '_blank')} />
+                      <img src={mediaUrl(it.media)} alt="" style={{ maxWidth: '100%', maxHeight: 160, borderRadius: 6, display: 'block', cursor: 'pointer', objectFit: 'cover' }} onClick={() => window.open(mediaUrl(it.media), '_blank')} />
                     )}
                   </div>
                 )}
