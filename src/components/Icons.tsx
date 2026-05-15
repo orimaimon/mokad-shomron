@@ -40,6 +40,7 @@ import {
   Layers,
   Radio,
   Table2,
+  Printer,
   type LucideProps
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -87,6 +88,7 @@ const iconMap = {
   Layers: Layers,
   Radio: Radio,
   Table: Table2,
+  Printer: Printer,
 };
 
 export function Icon({ name, lg, className = '', ...rest }: { name: string; lg?: boolean; className?: string } & Omit<LucideProps, 'ref'>) {

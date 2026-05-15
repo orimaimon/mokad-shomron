@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
+// @ts-ignore
+import html2pdf from 'html2pdf.js';
 import { Icon } from '../components/Icons';
 import { cn } from '../lib/utils';
 import { MokadData, DBRosterMember, DBIncident, DBFeedItem, Force, Evacuation } from '../types';
@@ -705,6 +707,26 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
     window.print();
   };
 
+  const handleDownloadPdf = () => {
+    const el = document.querySelector('.report-paper');
+    if (!el) return;
+    const kindLabel: Record<string, string> = {
+      daily: 'שגרה-יומי', roster: 'כוח-אדם', event: 'אירוע', shift: 'משמרת', osint: 'OSINT',
+    };
+    const dateStr = new Date().toLocaleDateString('he-IL').replace(/\//g, '-');
+    const filename = `mokad-shomron_${kindLabel[reportData!.reportKind]}_${dateStr}.pdf`;
+    html2pdf()
+      .set({
+        margin: [10, 10],
+        filename,
+        image: { type: 'jpeg', quality: 0.97 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      })
+      .from(el)
+      .save();
+  };
+
   const handleExportXlsx = () => {
     if (!reportData) return;
     const wb = XLSX.utils.book_new();
@@ -1061,8 +1083,11 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
               <button className="btn ghost" onClick={handleExportXlsx} style={{ gap: 6 }}>
                 <Icon name="Table" style={{ width: 14 }} /> XLSX
               </button>
-              <button className="btn brand" onClick={handlePrint} style={{ gap: 8 }}>
-                <Icon name="Download" style={{ width: 14 }} /> PDF
+              <button className="btn ghost" onClick={handlePrint} style={{ gap: 6 }}>
+                <Icon name="Printer" style={{ width: 14 }} /> הדפסה
+              </button>
+              <button className="btn brand" onClick={handleDownloadPdf} style={{ gap: 8 }}>
+                <Icon name="Download" style={{ width: 14 }} /> הורד PDF
               </button>
             </div>
             <div className="panel-b" style={{ flex: 1, overflow: 'auto', padding: '28px 24px', background: '#d0d4da' }}>
