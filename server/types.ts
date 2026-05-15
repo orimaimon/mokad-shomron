@@ -206,6 +206,7 @@ export const ApprovalAddSchema = z.object({
   scene: z.string().optional(),
   media: z.string().nullable().optional(),
   urgent: z.boolean().optional(),
+  src_type: z.enum(['internal', 'osint', 'field']).optional(),
 });
 
 export const ApprovalApproveSchema = z.object({

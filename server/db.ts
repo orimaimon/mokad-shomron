@@ -184,6 +184,10 @@ try { db.exec('ALTER TABLE event_evac ADD COLUMN is_deleted INTEGER DEFAULT 0');
 try { db.exec('ALTER TABLE approvals ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP'); } catch {}
 try { db.exec('ALTER TABLE event_forces ADD COLUMN is_deleted INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE approvals ADD COLUMN media TEXT'); } catch {}
+{
+  const approvalCols = (db.pragma('table_info(approvals)') as { name: string }[]).map(c => c.name);
+  if (!approvalCols.includes('src_type')) db.exec("ALTER TABLE approvals ADD COLUMN src_type TEXT DEFAULT 'field'");
+}
 
 // Feed column migrations — explicit check so silent catch can't hide missing columns
 {

@@ -23,11 +23,11 @@ router.get('/', requireAuth, (req, res) => {
 // POST /api/approvals — field reporter submits for approval (no auth required)
 router.post('/', validateBody(ApprovalAddSchema), (req, res) => {
   const body = req.body as ApprovalAddBody & { author: string };
-  const { author, text, scene, media, urgent = false } = body;
+  const { author, text, scene, media, urgent = false, src_type = 'field' } = body;
   const time = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
   const result = db.prepare(
-    'INSERT INTO approvals (time, author, text, scene, media, urgent) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(time, author, text, scene ?? null, media ?? null, urgent ? 1 : 0);
+    'INSERT INTO approvals (time, author, text, scene, media, urgent, src_type) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(time, author, text, scene ?? null, media ?? null, urgent ? 1 : 0, src_type);
 
   logAction({
     ...auditUser(req),
@@ -47,10 +47,12 @@ router.post('/:id/approve', requireAuth, validateBody(ApprovalApproveSchema), (r
   const approval = db.prepare('SELECT * FROM approvals WHERE id = ?').get(id) as DBApproval | undefined;
   if (!approval) return res.status(404).json({ error: 'לא נמצא' });
 
-  const approvalRow = approval as typeof approval & { text: string; author: string };
+  const approvalRow = approval as typeof approval & { text: string; author: string; src_type?: string };
   const text = (req.body as ApprovalApproveBody).text ?? approvalRow.text;
+  const src_type = approvalRow.src_type ?? 'field';
   const feedTime = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-  db.prepare('INSERT INTO feed (time, src, text, urgent, media) VALUES (?, ?, ?, ?, ?)').run(feedTime, approvalRow.author, text, approval.urgent, approval.media);
+  const created_at = new Date().toISOString();
+  db.prepare('INSERT INTO feed (time, src, text, urgent, media, src_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(feedTime, approvalRow.author, text, approval.urgent, approval.media, src_type, created_at);
   db.prepare('UPDATE approvals SET status = ? WHERE id = ?').run('approved', id);
 
   logAction({

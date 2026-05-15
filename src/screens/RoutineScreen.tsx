@@ -206,7 +206,19 @@ function EditIncidentModal({ incident, onClose, onSave }: { incident: RoutineInc
           <div className="b" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div className="field">
               <label>סוג אירוע</label>
-              <input className="input" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} />
+              <select className="input" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>
+                <option>תאונת דרכים</option>
+                <option>שריפה</option>
+                <option>חדירת מחבלים</option>
+                <option>ירי / חבלה</option>
+                <option>פח"ע - ישוב</option>
+                <option>פח"ע - ציר</option>
+                <option>חשד לחפץ חשוד</option>
+                <option>אסון טבע</option>
+                <option>אירוע רפואי</option>
+                <option>הפגנה / מהומה</option>
+                <option>אחר</option>
+              </select>
             </div>
             <div className="field">
               <label>מיקום</label>
@@ -290,7 +302,19 @@ function NewIncidentModal({ onClose, onSave }: { onClose: () => void, onSave: ()
         <div className="b" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="field">
             <label>סוג אירוע</label>
-            <input className="input" value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })} />
+            <select className="input" value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })}>
+              <option>תאונת דרכים</option>
+              <option>שריפה</option>
+              <option>חדירת מחבלים</option>
+              <option>ירי / חבלה</option>
+              <option>פח"ע - ישוב</option>
+              <option>פח"ע - ציר</option>
+              <option>חשד לחפץ חשוד</option>
+              <option>אסון טבע</option>
+              <option>אירוע רפואי</option>
+              <option>הפגנה / מהומה</option>
+              <option>אחר</option>
+            </select>
           </div>
           <div className="field">
             <label>מיקום</label>
