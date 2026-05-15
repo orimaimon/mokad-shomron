@@ -1066,8 +1066,10 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
               </button>
             </div>
             <div className="panel-b" style={{ flex: 1, overflow: 'auto', padding: 0 }}>
-              <div className="report-paper">
-                <ReportContent data={reportData} />
+              <div className="report-bg">
+                <div className="report-paper">
+                  <ReportContent data={reportData} />
+                </div>
               </div>
             </div>
           </>
