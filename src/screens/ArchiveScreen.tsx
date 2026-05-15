@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { Icon } from '../components/Icons';
 import { cn } from '../lib/utils';
 import { MokadData, DBRosterMember, DBIncident, DBFeedItem, Force, Evacuation } from '../types';
@@ -700,6 +701,112 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
     window.print();
   };
 
+  const handleExportXlsx = () => {
+    if (!reportData) return;
+    const wb = XLSX.utils.book_new();
+
+    const stateMap: Record<string, string> = { field: 'בשטח', brief: 'תדריך', return: 'בחזרה', out: 'מחוץ לגזרה', unavailable: 'לא זמין' };
+    const sevMap: Record<string, string> = { red: 'גבוהה', amber: 'בינונית', green: 'נמוכה' };
+
+    if (reportData.reportKind === 'daily' || reportData.reportKind === 'roster') {
+      const rosterRows = reportData.roster.map(r => ({
+        'שם': r.name,
+        'תפקיד': r.role,
+        'משימה': r.task || '',
+        'מצב': stateMap[r.state] ?? r.state,
+        'מחוץ לגזרה': r.is_out_of_sector ? 'כן' : 'לא',
+        'מחליף': r.replacement || '',
+        'טלפון מחליף': r.replacement_phone || '',
+        'זמן חזרה': r.return_time || '',
+        'טלפון': r.phone || '',
+        'טלפון מבצעי': r.operational_phone || '',
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rosterRows), 'בעלי תפקידים');
+
+      if (reportData.incidents?.length) {
+        const incRows = reportData.incidents.map(i => ({
+          'שעה': new Date(i.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+          'תאריך': new Date(i.created_at).toLocaleDateString('he-IL'),
+          'סוג': i.type,
+          'מיקום': i.location,
+          'סטטוס': i.status,
+          'חומרה': sevMap[i.severity] ?? i.severity,
+        }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(incRows), 'אירועים');
+      }
+
+      if (reportData.feed?.length) {
+        const feedRows = reportData.feed.map(f => ({
+          'שעה': f.time,
+          'מקור': f.src,
+          'תוכן': f.text,
+        }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(feedRows), 'יומן');
+      }
+
+    } else if (reportData.reportKind === 'event') {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{
+        'מזהה': reportData.id,
+        'סוג': reportData.type,
+        'מיקום': reportData.location,
+        'שם זירה': reportData.scene_name,
+        'רשת': reportData.grid,
+        'נפגעים קטלנים': reportData.dead,
+        'קשה': reportData.critical,
+        'בינוני': reportData.serious,
+        'קל': reportData.light,
+        'לא מטופל': reportData.untreated,
+        'נעדרים': reportData.missing,
+        'כלואים': reportData.trapped,
+      }]), 'פרטי אירוע');
+
+      if (reportData.feed?.length) {
+        const feedRows = reportData.feed.map(f => ({ 'שעה': f.time, 'מקור': f.src, 'תוכן': f.text }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(feedRows), 'יומן אירוע');
+      }
+
+      if (reportData.forces?.length) {
+        const forceRows = (reportData.forces as Force[]).map(f => ({ 'כוח': f.name, 'כמות': f.count }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(forceRows), 'כוחות');
+      }
+
+      if (reportData.evac?.length) {
+        const evacRows = (reportData.evac as Evacuation[]).map(e => ({ 'מי': e.who, 'על ידי': e.by, 'לאן': e.to, 'מצב': e.state }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(evacRows), 'פינויים');
+      }
+
+    } else if (reportData.reportKind === 'shift') {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{
+        'קצין תורן': reportData.manager_name,
+        'מוקדנים': reportData.dispatchers.join(', '),
+        'תחילת משמרת': reportData.start_time,
+        'סיום משמרת': reportData.end_time ?? 'פעילה',
+        'סטטוס': reportData.status,
+        'הערות': reportData.notes,
+      }]), 'משמרת');
+
+      if (reportData.incidents?.length) {
+        const incRows = reportData.incidents.map(i => ({
+          'שעה': new Date(i.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+          'סוג': i.type, 'מיקום': i.location, 'סטטוס': i.status, 'חומרה': sevMap[i.severity] ?? i.severity,
+        }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(incRows), 'אירועים');
+      }
+
+    } else if (reportData.reportKind === 'osint') {
+      const rows = reportData.items.map(i => ({
+        'שעה': i.time, 'מקור': i.src, 'תוכן': i.text, 'דחוף': i.urgent ? 'כן' : 'לא',
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'OSINT');
+    }
+
+    const kindLabel: Record<string, string> = {
+      daily: 'שגרה-יומי', roster: 'כוח-אדם', event: 'אירוע', shift: 'משמרת', osint: 'OSINT',
+    };
+    const dateStr = new Date().toLocaleDateString('he-IL').replace(/\//g, '-');
+    XLSX.writeFile(wb, `mokad-shomron_${kindLabel[reportData.reportKind]}_${dateStr}.xlsx`);
+  };
+
   const openEventReport = async (id: string) => {
     setLoading(true);
     setTab('generate');
@@ -891,8 +998,11 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
                 {reportData.reportKind === 'osint' && `דוח OSINT · ${reportData.date}`}
               </h3>
               <div className="spacer" />
+              <button className="btn ghost" onClick={handleExportXlsx} style={{ gap: 6 }}>
+                <Icon name="Table" style={{ width: 14 }} /> XLSX
+              </button>
               <button className="btn brand" onClick={handlePrint} style={{ gap: 8 }}>
-                <Icon name="Download" style={{ width: 14 }} /> הדפסה / שמירה כ-PDF
+                <Icon name="Download" style={{ width: 14 }} /> PDF
               </button>
             </div>
             <div className="panel-b" style={{ flex: 1, overflow: 'auto', padding: 0 }}>

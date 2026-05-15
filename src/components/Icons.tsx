@@ -39,6 +39,7 @@ import {
   ChevronRight,
   Layers,
   Radio,
+  Table2,
   type LucideProps
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -85,6 +86,7 @@ const iconMap = {
   ChevronRight: ChevronRight,
   Layers: Layers,
   Radio: Radio,
+  Table: Table2,
 };
 
 export function Icon({ name, lg, className = '', ...rest }: { name: string; lg?: boolean; className?: string } & Omit<LucideProps, 'ref'>) {
