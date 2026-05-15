@@ -180,15 +180,20 @@ try { db.exec('ALTER TABLE active_event ADD COLUMN version INTEGER DEFAULT 1'); 
 try { db.exec('ALTER TABLE roster ADD COLUMN version INTEGER DEFAULT 1'); } catch {}
 try { db.exec('ALTER TABLE roster ADD COLUMN is_deleted INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE roster ADD COLUMN deleted_at TEXT'); } catch {}
-try { db.exec('ALTER TABLE feed ADD COLUMN is_deleted INTEGER DEFAULT 0'); } catch {}
-try { db.exec('ALTER TABLE feed ADD COLUMN deleted_at TEXT'); } catch {}
 try { db.exec('ALTER TABLE event_evac ADD COLUMN is_deleted INTEGER DEFAULT 0'); } catch {}
 try { db.exec('ALTER TABLE approvals ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP'); } catch {}
 try { db.exec('ALTER TABLE event_forces ADD COLUMN is_deleted INTEGER DEFAULT 0'); } catch {}
-try { db.exec("ALTER TABLE feed ADD COLUMN src_type TEXT DEFAULT 'internal'"); } catch {}
-try { db.exec('ALTER TABLE feed ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP'); } catch {}
 try { db.exec('ALTER TABLE approvals ADD COLUMN media TEXT'); } catch {}
-try { db.exec('ALTER TABLE feed ADD COLUMN media TEXT'); } catch {}
+
+// Feed column migrations — explicit check so silent catch can't hide missing columns
+{
+  const feedCols = (db.pragma('table_info(feed)') as { name: string }[]).map(c => c.name);
+  if (!feedCols.includes('is_deleted'))  db.exec('ALTER TABLE feed ADD COLUMN is_deleted INTEGER DEFAULT 0');
+  if (!feedCols.includes('deleted_at'))  db.exec('ALTER TABLE feed ADD COLUMN deleted_at TEXT');
+  if (!feedCols.includes('src_type'))    db.exec("ALTER TABLE feed ADD COLUMN src_type TEXT DEFAULT 'internal'");
+  if (!feedCols.includes('created_at'))  db.exec('ALTER TABLE feed ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  if (!feedCols.includes('media'))       db.exec('ALTER TABLE feed ADD COLUMN media TEXT');
+}
 // Indexes on v2 columns — must run after ALTER TABLE migrations above
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_incidents_deleted ON incidents(is_deleted)'); } catch {}
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_feed_deleted ON feed(is_deleted)'); } catch {}
