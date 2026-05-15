@@ -698,6 +698,9 @@ button { font-family: inherit; }
 /* archive */
 .arch-grid { padding: 14px; display: grid; grid-template-columns: 280px 1fr; gap: 14px; height: 100%; min-height: 0; }
 
+/* print-wrap is invisible on screen — only surfaces during window.print() */
+.print-wrap { display: none; }
+
 /* utility */
 .muted { color: var(--ink-3); }
 
@@ -763,6 +766,7 @@ button { font-family: inherit; }
   body * { visibility: hidden; }
   .print-wrap, .print-wrap * { visibility: visible; }
   .print-wrap {
+    display: block;
     position: fixed; inset: 0; z-index: var(--z-flash);
     background: white; color: #111;
     direction: rtl; text-align: right;
