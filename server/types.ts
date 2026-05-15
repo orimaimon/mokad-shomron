@@ -158,7 +158,7 @@ export const FeedAddSchema = z.object({
   system: z.boolean().optional(),
   event_id: z.string().optional(),
   src_type: z.enum(['internal', 'osint', 'field']).optional(),
-  media: z.string().optional(),
+  media: z.string().nullable().optional(),
 });
 
 export const EmergencyStartSchema = z.object({
@@ -204,7 +204,7 @@ export const ApprovalAddSchema = z.object({
   author: z.string().min(1),
   text: z.string().min(1),
   scene: z.string().optional(),
-  media: z.string().optional(),
+  media: z.string().nullable().optional(),
   urgent: z.boolean().optional(),
 });
 

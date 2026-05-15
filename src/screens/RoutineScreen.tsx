@@ -506,14 +506,15 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange, showNewIn
   const handleSendReport = async () => {
     if (!reportText.trim() && !reportMedia) return;
     try {
-      await fetch('/api/feed', {
+      const res = await fetch('/api/feed', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ src: 'מוקדן', text: reportText, media: reportMedia })
+        body: JSON.stringify({ src: 'מוקדן', text: reportText, media: reportMedia ?? undefined })
       });
+      if (!res.ok) { toast('שגיאה בשליחת הדיווח', 'error'); return; }
       setReportText('');
       setReportMedia(null);
-    } catch (err) {}
+    } catch { toast('שגיאת רשת', 'error'); }
   };
 
   const handleDeletePerson = async (id: number) => {
