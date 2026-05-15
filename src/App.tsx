@@ -21,6 +21,7 @@ import { MokadData, User, NavItem, OpenEventFormData, DBFeedItem, DBIncident, DB
 import { io } from 'socket.io-client';
 import { ToastProvider, toast, confirmDialog } from './components/Toast';
 import { playNotificationSound, initAudio } from './lib/sounds';
+import { useRegisterSW } from 'virtual:pwa-register/react';
 import './App.css';
 
 const data = MOKAD_DATA as unknown as MokadData;
@@ -384,6 +385,12 @@ function OpenEventModal({ onConfirm, onClose }: { onConfirm: (data: OpenEventFor
 }
 
 function App() {
+  const { updateServiceWorker } = useRegisterSW({
+    onNeedRefresh() {
+      if (window.confirm('גרסה חדשה של המערכת זמינה. לרענן עכשיו?')) updateServiceWorker(true);
+    },
+  });
+
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [emergencyActive, setEmergencyActive] = useState(false);

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0d0f14"/>
+  <path d="M256 80 L400 130 L400 270 Q400 370 256 440 Q112 370 112 270 L112 130 Z" fill="none" stroke="#f5a524" stroke-width="24" stroke-linejoin="round"/>
+  <text x="256" y="310" font-family="Arial, sans-serif" font-size="180" font-weight="700" fill="#f5a524" text-anchor="middle">מ</text>
+</svg>
