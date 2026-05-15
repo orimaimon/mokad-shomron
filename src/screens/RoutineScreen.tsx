@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtDate } from '../hooks/useClock';
 import { MokadData, RosterMember, RoutineIncident } from '../types';
-import { cn, getRosterStateConfig, mediaUrl } from '../lib/utils';
+import { cn, getRosterStateConfig } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from '../components/Toast';
+import { Lightbox, MediaInline } from '../components/MediaViewer';
 
 interface RoutineScreenProps {
   data: MokadData;
@@ -404,6 +405,7 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange, showNewIn
   const [deletedIds, setDeletedIds] = useState<Set<number>>(new Set());
   const [closingIds, setClosingIds] = useState<Set<number>>(new Set());
   const [editingIncident, setEditingIncident] = useState<any>(null);
+  const [lightbox, setLightbox] = useState<string | null>(null);
 
   // Sync external Ctrl+N trigger
   useEffect(() => {
@@ -579,6 +581,7 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange, showNewIn
       : <span style={{ marginRight: 4, fontSize: 10, opacity: .25 }}>↕</span>;
 
   return (
+    <>
     <div style={{ height: '100%', padding: 10, display: 'grid', gridTemplateColumns: '1.1fr 1fr 1fr', gap: 10, minHeight: 0 }}>
       {editingPerson && (
         <RosterUpdateModal 
@@ -785,13 +788,7 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange, showNewIn
                   <span className="src">— {it.src}</span>
                 </div>
                 {it.media && (
-                  <div style={{ marginTop: 6 }}>
-                    {/\.(mp4|webm|mov|avi)(\?.*)?$/i.test(it.media) || it.media.startsWith('data:video/') ? (
-                      <video src={mediaUrl(it.media)} controls style={{ maxWidth: '100%', maxHeight: 160, borderRadius: 6, display: 'block' }} />
-                    ) : (
-                      <img src={mediaUrl(it.media)} alt="" style={{ maxWidth: '100%', maxHeight: 160, borderRadius: 6, display: 'block', cursor: 'pointer', objectFit: 'cover' }} onClick={() => window.open(mediaUrl(it.media), '_blank')} />
-                    )}
-                  </div>
+                  <MediaInline src={it.media} onClick={() => setLightbox(it.media!)} maxHeight={160} />
                 )}
                 <button
                   className="btn ghost-red icon-sm"
@@ -982,5 +979,7 @@ export function RoutineScreen({ data, onOpenEmergency, onRosterChange, showNewIn
         </div>
       </div>
     </div>
+    {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
+    </>
   );
 }

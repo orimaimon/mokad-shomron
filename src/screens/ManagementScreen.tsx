@@ -4,8 +4,9 @@ import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtHM } from '../hooks/useClock';
 import { MokadData, ApprovalRequest } from '../types';
 import { toast } from '../components/Toast';
-import { cn, mediaUrl } from '../lib/utils';
+import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { Lightbox, MediaThumb, MediaInline, isVideo } from '../components/MediaViewer';
 
 const SRC_TYPE_META = {
   internal: { label: 'מוקד', cls: 'blue' },
@@ -20,13 +21,8 @@ function SrcBadge({ type }: { type?: string }) {
   return <span className={`tag sm ${meta.cls}`}>{meta.label}</span>;
 }
 
-function isVideo(src: string) {
-  return /\.(mp4|webm|mov|avi|mkv)(\?.*)?$/i.test(src) || src.startsWith('data:video/');
-}
-
 async function processMediaFile(file: File): Promise<string> {
   if (file.type.startsWith('image/')) {
-    // compress client-side, return base64
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -48,80 +44,12 @@ async function processMediaFile(file: File): Promise<string> {
       reader.readAsDataURL(file);
     });
   }
-  // video or other — upload to server, return URL
   const fd = new FormData();
   fd.append('file', file);
   const res = await fetch('/api/media/upload', { method: 'POST', body: fd });
   if (!res.ok) throw new Error('upload failed');
   const { url } = await res.json();
   return url as string;
-}
-
-function MediaThumb({ src, onClick }: { src: string; onClick: () => void }) {
-  const video = isVideo(src);
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        width: 72, height: 72, borderRadius: 7, border: '1px solid var(--line-2)',
-        cursor: 'zoom-in', flexShrink: 0, overflow: 'hidden', position: 'relative',
-        background: '#000',
-      }}
-      title={video ? 'הצג סרטון' : 'הצג תמונה'}
-    >
-      {video ? (
-        <>
-          <video src={mediaUrl(src)} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)' }}>
-            <span style={{ fontSize: 18, color: '#fff' }}>▶</span>
-          </div>
-        </>
-      ) : (
-        <img src={mediaUrl(src)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      )}
-    </div>
-  );
-}
-
-function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
-  const video = isVideo(src);
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 60000,
-        background: 'rgba(0,0,0,0.94)', display: 'flex',
-        alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out',
-      }}
-    >
-      {video ? (
-        <video
-          src={mediaUrl(src)}
-          controls
-          autoPlay
-          onClick={e => e.stopPropagation()}
-          style={{ maxWidth: '92vw', maxHeight: '88vh', borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,.7)', cursor: 'default', background: '#000' }}
-        />
-      ) : (
-        <img
-          src={mediaUrl(src)}
-          onClick={e => e.stopPropagation()}
-          style={{ maxWidth: '92vw', maxHeight: '88vh', objectFit: 'contain', borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,.7)', cursor: 'default' }}
-        />
-      )}
-      <button
-        onClick={onClose}
-        style={{ position: 'absolute', top: 20, left: 20, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '6px 14px', color: '#fff', cursor: 'pointer', fontSize: 13 }}
-      >
-        סגור · Esc
-      </button>
-    </div>
-  );
 }
 
 function waitingSince(createdAt?: string): string {
@@ -484,20 +412,7 @@ export function ManagementScreen({ data }: { data: MokadData }) {
                       </div>
                     )}
                     {a.media && (
-                      isVideo(a.media) ? (
-                        <video
-                          src={mediaUrl(a.media)}
-                          controls
-                          style={{ width: '100%', maxHeight: 200, borderRadius: 8, border: '1px solid var(--line-2)', display: 'block' }}
-                        />
-                      ) : (
-                        <img
-                          src={mediaUrl(a.media)}
-                          onClick={() => setLightbox(a.media!)}
-                          style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line-2)', cursor: 'zoom-in', display: 'block' }}
-                          title="הצג תמונה"
-                        />
-                      )
+                      <MediaInline src={a.media} onClick={() => setLightbox(a.media!)} maxHeight={200} />
                     )}
 
                     <div style={{ display: 'flex', gap: 6 }}>
