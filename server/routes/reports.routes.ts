@@ -13,7 +13,9 @@ router.get('/daily', (req, res) => {
     ? db.prepare(`SELECT * FROM incidents WHERE is_deleted = 0 AND DATE(created_at) = ? ORDER BY created_at DESC`).all(dateParam)
     : db.prepare(`SELECT * FROM incidents WHERE is_deleted = 0 ORDER BY created_at DESC`).all();
 
-  const feed = db.prepare(`SELECT * FROM feed WHERE is_deleted = 0 AND system = 0 AND (event_id IS NULL OR event_id = '') ORDER BY id DESC LIMIT 50`).all();
+  const feed = dateParam
+    ? db.prepare(`SELECT * FROM feed WHERE is_deleted = 0 AND system = 0 AND (event_id IS NULL OR event_id = '') AND DATE(created_at) = ? ORDER BY id DESC LIMIT 50`).all(dateParam)
+    : db.prepare(`SELECT * FROM feed WHERE is_deleted = 0 AND system = 0 AND (event_id IS NULL OR event_id = '') ORDER BY id DESC LIMIT 50`).all();
 
   const ref = dateParam ? new Date(dateParam + 'T12:00:00') : new Date();
   res.json({

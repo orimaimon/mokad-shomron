@@ -657,10 +657,12 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
   const [reportType, setReportType] = useState<ReportType>('daily');
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [events, setEvents] = useState<ArchivedEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState('');
   const [archiveSearch, setArchiveSearch] = useState('');
   const [archiveStatus, setArchiveStatus] = useState('');
+  const [archiveKind, setArchiveKind] = useState<'events' | 'shifts'>('events');
   const [dailyDate, setDailyDate] = useState('');
   const [shifts, setShifts] = useState<ArchivedShift[]>([]);
   const [selectedShiftId, setSelectedShiftId] = useState('');
@@ -672,24 +674,27 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
 
   const generate = async () => {
     setLoading(true);
+    setError('');
     try {
+      let res: Response;
       if (reportType === 'daily' || reportType === 'roster') {
         const qs = dailyDate ? `?date=${dailyDate}` : '';
-        const res = await fetch(`/api/reports/daily${qs}`);
-        setReportData({ reportKind: reportType, ...(await res.json()) });
+        res = await fetch(`/api/reports/daily${qs}`);
       } else if (reportType === 'event') {
         if (!selectedEventId) return;
-        const res = await fetch(`/api/reports/event/${selectedEventId}`);
-        setReportData({ reportKind: 'event', ...(await res.json()) });
+        res = await fetch(`/api/reports/event/${selectedEventId}`);
       } else if (reportType === 'shift') {
         if (!selectedShiftId) return;
-        const res = await fetch(`/api/reports/shift/${selectedShiftId}`);
-        setReportData({ reportKind: 'shift', ...(await res.json()) });
-      } else if (reportType === 'osint') {
+        res = await fetch(`/api/reports/shift/${selectedShiftId}`);
+      } else {
         const qs = dailyDate ? `?date=${dailyDate}` : '';
-        const res = await fetch(`/api/reports/osint${qs}`);
-        setReportData({ reportKind: 'osint', ...(await res.json()) });
+        res = await fetch(`/api/reports/osint${qs}`);
       }
+      if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
+      const json = await res.json();
+      setReportData({ reportKind: reportType, ...json });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'שגיאה בהפקת הדוח');
     } finally {
       setLoading(false);
     }
@@ -697,7 +702,6 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
 
   const handlePrint = () => {
     if (!reportData) return;
-    window.addEventListener('afterprint', () => {}, { once: true });
     window.print();
   };
 
@@ -911,75 +915,131 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
               <button
                 className="btn brand"
                 onClick={generate}
-                disabled={loading || (reportType === 'event' && !selectedEventId) || (reportType === 'shift' && !selectedShiftId) || false}
+                disabled={loading || (reportType === 'event' && !selectedEventId) || (reportType === 'shift' && !selectedShiftId)}
                 style={{ justifyContent: 'center', padding: '10px' }}
               >
                 <Icon name="Doc" /> {loading ? 'מכין דוח...' : 'הפק תצוגה מקדימה'}
               </button>
+              {error && (
+                <div style={{ background: 'rgba(220,38,38,.12)', border: '1px solid rgba(220,38,38,.3)', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: '#f87171', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Icon name="X" style={{ width: 12, flexShrink: 0 }} />{error}
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {tab === 'archive' && (
           <div className="panel" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <div className="panel-h"><Icon name="Archive" /><h3>אירועי עבר</h3><span className="tag" style={{ marginRight: 4 }}>{events.length}</span></div>
-            <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border-1)', background: 'var(--bg-1)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <Icon name="Search" style={{ width: 14, color: 'var(--ink-4)', alignSelf: 'center', flexShrink: 0 }} />
-                <input
-                  className="input" style={{ fontSize: 12, padding: '4px 8px' }}
-                  placeholder="חיפוש לפי סוג / מיקום / מזהה..."
-                  value={archiveSearch} onChange={e => setArchiveSearch(e.target.value)}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <select className="input" style={{ fontSize: 12, padding: '4px 6px', flex: 1 }} value={archiveStatus} onChange={e => setArchiveStatus(e.target.value)}>
-                  <option value="">כל האירועים</option>
-                  <option value="active">פעיל</option>
-                  <option value="closed">סגור</option>
-                </select>
-                {(archiveSearch || archiveStatus) && (
-                  <button className="btn ghost-red icon-sm" onClick={() => { setArchiveSearch(''); setArchiveStatus(''); }} title="נקה">
-                    <Icon name="X" style={{ width: 11 }} />
-                  </button>
-                )}
+            <div className="panel-h">
+              <Icon name="Archive" />
+              <h3>{archiveKind === 'events' ? 'אירועי חירום' : 'משמרות'}</h3>
+              <span className="tag" style={{ marginRight: 4 }}>{archiveKind === 'events' ? events.length : shifts.length}</span>
+              <div className="spacer" />
+              <div className="tabs-row" style={{ gap: 4 }}>
+                <button className={cn('tab sm', archiveKind === 'events' && 'on')} onClick={() => setArchiveKind('events')}>אירועים</button>
+                <button className={cn('tab sm', archiveKind === 'shifts' && 'on')} onClick={() => setArchiveKind('shifts')}>משמרות</button>
               </div>
             </div>
-            <div className="panel-b" style={{ padding: 0, overflow: 'auto', flex: 1 }}>
-              {(() => {
-                const q = archiveSearch.toLowerCase();
-                const filtered = events.filter(ev => {
-                  if (q && !ev.id?.toLowerCase().includes(q) && !ev.type?.toLowerCase().includes(q) && !ev.location?.toLowerCase().includes(q)) return false;
-                  if (archiveStatus === 'active' && !ev.is_active) return false;
-                  if (archiveStatus === 'closed' && ev.is_active) return false;
-                  return true;
-                });
-                if (filtered.length === 0) return (
-                  <div style={{ padding: 20, color: 'var(--ink-4)', textAlign: 'center', fontSize: 13 }}>אין תוצאות</div>
-                );
-                return filtered.map(ev => (
-                <div
-                  key={ev.id}
-                  style={{ padding: '10px 14px', borderBottom: '1px solid var(--border-1)', cursor: 'pointer', transition: 'background .12s' }}
-                  onClick={() => openEventReport(ev.id)}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.03)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = '')}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span className="mono" style={{ fontSize: 11, color: 'var(--amber)' }}>{ev.id}</span>
-                    <span className={cn('tag sm', ev.is_active ? 'red' : 'green')}>{ev.is_active ? 'פעיל' : 'סגור'}</span>
+
+            {archiveKind === 'events' && (
+              <>
+                <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border-1)', background: 'var(--bg-1)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Icon name="Search" style={{ width: 14, color: 'var(--ink-4)', alignSelf: 'center', flexShrink: 0 }} />
+                    <input
+                      className="input" style={{ fontSize: 12, padding: '4px 8px' }}
+                      placeholder="חיפוש לפי סוג / מיקום / מזהה..."
+                      value={archiveSearch} onChange={e => setArchiveSearch(e.target.value)}
+                    />
                   </div>
-                  <div style={{ fontWeight: 600, fontSize: 13, marginTop: 3 }}>{ev.type}</div>
-                  <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{ev.location} · {ev.scene_name}</div>
-                  {ev.started_at ? (
-                    <div style={{ fontSize: 10, color: 'var(--ink-4)', marginTop: 2, fontFamily: 'var(--mono)' }}>
-                      {new Date(ev.started_at).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                  ) : null}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <select className="input" style={{ fontSize: 12, padding: '4px 6px', flex: 1 }} value={archiveStatus} onChange={e => setArchiveStatus(e.target.value)}>
+                      <option value="">כל האירועים</option>
+                      <option value="active">פעיל</option>
+                      <option value="closed">סגור</option>
+                    </select>
+                    {(archiveSearch || archiveStatus) && (
+                      <button className="btn ghost-red icon-sm" onClick={() => { setArchiveSearch(''); setArchiveStatus(''); }} title="נקה">
+                        <Icon name="X" style={{ width: 11 }} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                ));
-              })()}
-            </div>
+                <div className="panel-b" style={{ padding: 0, overflow: 'auto', flex: 1 }}>
+                  {(() => {
+                    const q = archiveSearch.toLowerCase();
+                    const filtered = events.filter(ev => {
+                      if (q && !ev.id?.toLowerCase().includes(q) && !ev.type?.toLowerCase().includes(q) && !ev.location?.toLowerCase().includes(q)) return false;
+                      if (archiveStatus === 'active' && !ev.is_active) return false;
+                      if (archiveStatus === 'closed' && ev.is_active) return false;
+                      return true;
+                    });
+                    if (filtered.length === 0) return (
+                      <div style={{ padding: 20, color: 'var(--ink-4)', textAlign: 'center', fontSize: 13 }}>אין תוצאות</div>
+                    );
+                    return filtered.map(ev => (
+                      <div
+                        key={ev.id}
+                        style={{ padding: '10px 14px', borderBottom: '1px solid var(--border-1)', cursor: 'pointer', transition: 'background .12s' }}
+                        onClick={() => openEventReport(ev.id)}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.03)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = '')}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span className="mono" style={{ fontSize: 11, color: 'var(--amber)' }}>{ev.id}</span>
+                          <span className={cn('tag sm', ev.is_active ? 'red' : 'green')}>{ev.is_active ? 'פעיל' : 'סגור'}</span>
+                        </div>
+                        <div style={{ fontWeight: 600, fontSize: 13, marginTop: 3 }}>{ev.type}</div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{ev.location} · {ev.scene_name}</div>
+                        {ev.started_at ? (
+                          <div style={{ fontSize: 10, color: 'var(--ink-4)', marginTop: 2, fontFamily: 'var(--mono)' }}>
+                            {new Date(ev.started_at).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        ) : null}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </>
+            )}
+
+            {archiveKind === 'shifts' && (
+              <div className="panel-b" style={{ padding: 0, overflow: 'auto', flex: 1 }}>
+                {shifts.length === 0 ? (
+                  <div style={{ padding: 20, color: 'var(--ink-4)', textAlign: 'center', fontSize: 13 }}>אין משמרות</div>
+                ) : shifts.map(s => (
+                  <div
+                    key={s.id}
+                    style={{ padding: '10px 14px', borderBottom: '1px solid var(--border-1)', cursor: 'pointer', transition: 'background .12s' }}
+                    onClick={async () => {
+                      setLoading(true); setError(''); setTab('generate');
+                      try {
+                        const res = await fetch(`/api/reports/shift/${s.id}`);
+                        if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
+                        setReportData({ reportKind: 'shift', ...(await res.json()) });
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : 'שגיאה');
+                      } finally { setLoading(false); }
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.03)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>{s.manager_name}</span>
+                      <span className={cn('tag sm', s.status === 'active' ? 'red' : 'green')}>{s.status === 'active' ? 'פעילה' : 'סגורה'}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>
+                      {new Date(s.start_time).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      {s.end_time ? ` — ${new Date(s.end_time).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}` : ' (פעילה)'}
+                    </div>
+                    {s.dispatchers.length > 0 && (
+                      <div style={{ fontSize: 10, color: 'var(--ink-4)', marginTop: 2 }}>{s.dispatchers.join(', ')}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
