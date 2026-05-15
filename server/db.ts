@@ -191,7 +191,7 @@ try { db.exec('ALTER TABLE approvals ADD COLUMN media TEXT'); } catch {}
   if (!feedCols.includes('is_deleted'))  db.exec('ALTER TABLE feed ADD COLUMN is_deleted INTEGER DEFAULT 0');
   if (!feedCols.includes('deleted_at'))  db.exec('ALTER TABLE feed ADD COLUMN deleted_at TEXT');
   if (!feedCols.includes('src_type'))    db.exec("ALTER TABLE feed ADD COLUMN src_type TEXT DEFAULT 'internal'");
-  if (!feedCols.includes('created_at'))  db.exec('ALTER TABLE feed ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  if (!feedCols.includes('created_at'))  db.exec('ALTER TABLE feed ADD COLUMN created_at TEXT');
   if (!feedCols.includes('media'))       db.exec('ALTER TABLE feed ADD COLUMN media TEXT');
 }
 // Indexes on v2 columns — must run after ALTER TABLE migrations above
