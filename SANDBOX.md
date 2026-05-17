@@ -174,6 +174,7 @@
 - [x] **LiveMap COP**: מפה אינטראקטיבית בחמ"ל — Leaflet dark tiles, מרקרים לאירועים/כוחות/חירום, KML overlay מ-Google My Maps
 - [x] **incidents.map_coords**: עמודת map_coords נוספה ל-incidents (migration + schema + API create + update)
 - [x] **TypeScript 0 errors**: תוקנו כל שגיאות TS — RosterUpdateModal סוגר חסר, recharts formatter types, Signature component, html2pdf cast, MobileScreen headers type
+- [x] **Production build תקין**: code splitting ל-4 vendor chunks (react/motion/charts/socket) — main bundle ירד מ-2.21MB ל-1.48MB; תוקן `app.get('*')` → `app.use()` לתאימות Express 5
 
 ---
 
@@ -196,8 +197,9 @@
 ## ה-commit האחרון
 
 ```
+e50d96a fix: production build and server
+309f93c docs: update SANDBOX with latest commits and TS fix entry
 9c40a45 fix: resolve all TypeScript errors found during runtime check
-acf7071 docs: update SANDBOX — reflect v3.0 features and open items
 ec4ceb7 fix: code review bugs — mobile auth headers, redirect loop, Leaflet guard, timezone
 f3666d5 feat: AnalyticsScreen, LiveMap COP, standalone mobile auth + fixes
 ```
