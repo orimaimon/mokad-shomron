@@ -88,8 +88,8 @@
 | prefix | קובץ | פעולות |
 |--------|------|--------|
 | `/api/auth` | auth.routes.ts | POST /login |
-| `/api/roster` | roster.routes.ts | GET, POST, PATCH /:id, DELETE /:id |
-| `/api/incidents` | incidents.routes.ts | GET (פילטר/עמוד), POST, POST /:id/update, POST /:id/close |
+| `/api/roster` | roster.routes.ts | GET, POST /add, POST /update, POST /:id/edit, DELETE /:id, GET /replacements |
+| `/api/incidents` | incidents.routes.ts | GET (פילטר/עמוד), POST, POST /:id/update (כולל map_coords), POST /:id/close |
 | `/api/feed` | feed.routes.ts | GET (src_type filter), POST, DELETE /:id |
 | `/api/emergency` | emergency.routes.ts | GET /active, POST /start, POST /update, POST /close |
 | `/api/approvals` | approvals.routes.ts | GET, POST, POST /:id/approve, POST /:id/reject |
@@ -98,6 +98,8 @@
 | `/api/reports` | reports.routes.ts | GET /daily, GET /event/:id, GET /roster, GET /shift/:id, GET /osint |
 | `/api/audit` | audit.routes.ts | GET (admin only) |
 | `/api/admin` | admin.routes.ts | GET /users, POST /users, PUT /users/:id, DELETE /users/:id |
+| `/api/analytics` | analytics.routes.ts | GET /kpi, GET /trends, GET /distribution |
+| `/api/map` | map.routes.ts | GET /kml (proxy ל-Google My Maps, עד 5 redirects) |
 | `/api/mobile` | mobile.routes.ts | POST /request-otp, POST /verify-otp, GET /otp (admin) — *לגאסי, לא בשימוש* |
 | `/uploads/*` | static | JWT auth via query param `?token=` |
 
@@ -110,7 +112,7 @@
 | `MediaViewer.tsx` | `MediaThumb`, `MediaInline`, `Lightbox` — lightbox אחיד לכל המסכים |
 | `Icons.tsx` | wrapper ל-lucide-react עם שמות עבריים-ידידותיים |
 | `CommandPalette.tsx` | Ctrl+K palette גלובלי |
-| `LiveMap.tsx` | מפה חיה לאירועים |
+| `LiveMap.tsx` | מפת COP אינטראקטיבית (Leaflet): אירועים, כוחות, חירום + KML overlay מ-Google My Maps |
 | `MapPicker.tsx` | בחירת נ"צ מהמפה |
 | `Toast.tsx` | הודעות toast |
 
@@ -167,31 +169,35 @@
 - [x] סוג אירוע שגרה: select עם קטגוריות מוגדרות (במקום free text)
 - [x] **MobileScreen → Standalone PWA**: נתיב `/mobile` עם viewport נפרד, ללא sidebar/header
 - [x] **Mobile auth**: החלפת OTP בכניסת email+password רגילה (sessionStorage)
-- [x] **AnalyticsScreen**: מסך סטטיסטיקות ומגמות (BI Dashboard) עם גרפים מבוססי `recharts`.
+- [x] **Mobile offline queue**: דיווחים נשמרים ב-localStorage כשאין קליטה, מסתנכרנים אוטומטית בחזרה לרשת
+- [x] **AnalyticsScreen**: מסך סטטיסטיקות ומגמות (BI Dashboard) עם גרפים מבוססי `recharts`
+- [x] **LiveMap COP**: מפה אינטראקטיבית בחמ"ל — Leaflet dark tiles, מרקרים לאירועים/כוחות/חירום, KML overlay מ-Google My Maps
+- [x] **incidents.map_coords**: עמודת map_coords נוספה ל-incidents (migration + schema + API create + update)
 
 ---
 
 ## ידוע / ממתין
 
-- [ ] DashboardScreen: מצלמות סימולציה — לא חיות
+- [x] DashboardScreen: מצלמות סימולציה — הוחלפו במפת COP אינטראקטיבית
 - [x] ArchiveScreen: חיפוש/פילטר בדוחות ישנים
 - [ ] אין tests אוטומטיים
 - [ ] mobile.routes.ts (OTP) — קוד לגאסי, ניתן להסיר
-- [ ] ניהול נהלים (SOP Checklists): הוספת רשימת משימות אוטומטית לפי סוג אירוע ב-EmergencyScreen.
-- [ ] מערכת התראות (Alerts): צלילים והתראות Toast בולטות כשיש דיווחי שדה חדשים או אירועי חירום.
-- [x] מפת תמונת מצב (COP): מפה חיה וגדולה ב-Dashboard המציגה אירועים, כוחות ורדיוסים בזמן אמת.
-- [ ] תמיכה מלאה באופליין לאפליקציית שטח (Offline-First Sync): שמירת דיווחים למסד נתונים מקומי (IndexedDB) באפליקציית ה-Mobile כשהקליטה נופלת, וסנכרון אוטומטי בחזרה לשרת.
-- [ ] אינטגרציות חיצוניות: חיבור ל-API של פיקוד העורף (צבע אדום) או מערכות שליחת SMS (הקפצת כיתת כוננות מתוך המערכת).
+- [ ] RoutineScreen: טופס "אירוע חדש" לא כולל Map Picker לבחירת נ"צ (למרות ש-map_coords קיים ב-DB ו-API)
+- [ ] analytics + map routes — ללא JWT auth (עקבי עם שאר ה-GET routes, אך ניתן לשיקול)
+- [ ] ניהול נהלים (SOP Checklists): הוספת רשימת משימות אוטומטית לפי סוג אירוע ב-EmergencyScreen
+- [ ] מערכת התראות (Alerts): צלילים והתראות Toast בולטות כשיש דיווחי שדה חדשים או אירועי חירום
+- [x] מפת תמונת מצב (COP): מפה חיה וגדולה ב-Dashboard המציגה אירועים, כוחות ורדיוסים בזמן אמת
+- [x] Offline-First Mobile: שמירה ב-localStorage + sync אוטומטי בחזרה לרשת
+- [ ] אינטגרציות חיצוניות: חיבור ל-API של פיקוד העורף (צבע אדום) או מערכות שליחת SMS
 
 ---
 
 ## ה-commit האחרון
 
 ```
-81f2e67 fix: event type category selector + approval src_type passthrough
+ec4ceb7 fix: code review bugs — mobile auth headers, redirect loop, Leaflet guard, timezone
+f3666d5 feat: AnalyticsScreen, LiveMap COP, standalone mobile auth + fixes
 ```
-
-*(לא עודכן ב-git מאז — שינויים ב-MobileScreen, ManagementScreen, App.tsx, main.tsx, index.css)*
 
 ---
 
