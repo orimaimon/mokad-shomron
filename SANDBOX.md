@@ -173,6 +173,7 @@
 - [x] **AnalyticsScreen**: מסך סטטיסטיקות ומגמות (BI Dashboard) עם גרפים מבוססי `recharts`
 - [x] **LiveMap COP**: מפה אינטראקטיבית בחמ"ל — Leaflet dark tiles, מרקרים לאירועים/כוחות/חירום, KML overlay מ-Google My Maps
 - [x] **incidents.map_coords**: עמודת map_coords נוספה ל-incidents (migration + schema + API create + update)
+- [x] **TypeScript 0 errors**: תוקנו כל שגיאות TS — RosterUpdateModal סוגר חסר, recharts formatter types, Signature component, html2pdf cast, MobileScreen headers type
 
 ---
 
@@ -195,6 +196,8 @@
 ## ה-commit האחרון
 
 ```
+9c40a45 fix: resolve all TypeScript errors found during runtime check
+acf7071 docs: update SANDBOX — reflect v3.0 features and open items
 ec4ceb7 fix: code review bugs — mobile auth headers, redirect loop, Leaflet guard, timezone
 f3666d5 feat: AnalyticsScreen, LiveMap COP, standalone mobile auth + fixes
 ```
