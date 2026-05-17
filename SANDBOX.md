@@ -187,7 +187,7 @@
 - [x] RoutineScreen: טופס "אירוע חדש" כולל Map Picker לבחירת נ"צ (map_coords נשלח ל-API)
 - [ ] analytics + map routes — ללא JWT auth (עקבי עם שאר ה-GET routes, אך ניתן לשיקול)
 - [ ] ניהול נהלים (SOP Checklists): הוספת רשימת משימות אוטומטית לפי סוג אירוע ב-EmergencyScreen
-- [ ] מערכת התראות (Alerts): צלילים והתראות Toast בולטות כשיש דיווחי שדה חדשים או אירועי חירום
+- [x] **מערכת התראות (Alerts)**: AlertBanner בולט (top-center, spring animation, 8s + countdown bar) לדיווחי שדה ואירוע חירום; badges בסיידבר (amber על ניהול מוקד, אדום על חירום); צליל warning על approval חדש
 - [x] מפת תמונת מצב (COP): מפה חיה וגדולה ב-Dashboard המציגה אירועים, כוחות ורדיוסים בזמן אמת
 - [x] Offline-First Mobile: שמירה ב-localStorage + sync אוטומטי בחזרה לרשת
 - [ ] אינטגרציות חיצוניות: חיבור ל-API של פיקוד העורף (צבע אדום) או מערכות שליחת SMS
@@ -197,6 +197,7 @@
 ## ה-commit האחרון
 
 ```
+90d7409 feat: alert system — AlertBanner + sidebar badges
 017f91b feat: add Map Picker to new incident form in RoutineScreen
 e50d96a fix: production build and server
 309f93c docs: update SANDBOX with latest commits and TS fix entry
