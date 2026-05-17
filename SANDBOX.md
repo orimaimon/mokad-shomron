@@ -190,7 +190,8 @@
 - [x] **מערכת התראות (Alerts)**: AlertBanner בולט (top-center, spring animation, 8s + countdown bar) לדיווחי שדה ואירוע חירום; badges בסיידבר (amber על ניהול מוקד, אדום על חירום); צליל warning על approval חדש
 - [x] מפת תמונת מצב (COP): מפה חיה וגדולה ב-Dashboard המציגה אירועים, כוחות ורדיוסים בזמן אמת
 - [x] Offline-First Mobile: שמירה ב-localStorage + sync אוטומטי בחזרה לרשת
-- [ ] אינטגרציות חיצוניות: חיבור ל-API של פיקוד העורף (צבע אדום) או מערכות שליחת SMS
+- [ ] **אינטגרציית פיקוד העורף (צבע אדום)**: polling כל 5 שניות ל-oref.org.il/WarningMessages/alert/alerts.json (ללא API Key); התרעה בגזרה → אירוע שגרה אוטומטי + AlertBanner + צליל critical; אם יש חירום פעיל → מוסיף לפיד; רשימת ישובים בגזרה ניתנת להגדרה ב-AdminScreen
+- [ ] SMS / WhatsApp alerts — צריך שירות חיצוני (Twilio / 019)
 
 ---
 
