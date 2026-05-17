@@ -28,6 +28,7 @@ export default defineConfig(({mode}) => {
           ],
         },
         workbox: {
+          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3MB — bundle may exceed 2MB default
           // Cache app shell (JS/CSS/HTML) with StaleWhileRevalidate
           globPatterns: ['**/*.{js,css,html,svg,woff2}'],
           runtimeCaching: [
@@ -54,6 +55,18 @@ export default defineConfig(({mode}) => {
     ],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('/react/') || id.includes('/react-dom/')) return 'vendor-react';
+            if (id.includes('/motion/')) return 'vendor-motion';
+            if (id.includes('/recharts/') || id.includes('/d3-') || id.includes('/internmap/') || id.includes('/decimal.js')) return 'vendor-charts';
+            if (id.includes('/socket.io-client/') || id.includes('/engine.io-client/')) return 'vendor-socket';
+          },
+        },
+      },
     },
     resolve: {
       alias: {
