@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Icon, FormattedText } from '../components/Icons';
 import { useNow, fmtTime, elapsed } from '../hooks/useClock';
 import { MokadData, ActiveEvent } from '../types';
@@ -212,6 +212,107 @@ function AddEvacModal({ eventId, onClose, onSave }: {
   );
 }
 
+// ── SopPanel ──────────────────────────────────────────────────────────────
+
+function SopPanel({ eventId, eventType }: { eventId: string; eventType: string }) {
+  const [steps, setSteps] = useState<string[]>([]);
+  const [progress, setProgress] = useState<Record<number, boolean>>({});
+  const [collapsed, setCollapsed] = useState(false);
+
+  const token = localStorage.getItem('token');
+  const userName = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}').name || ''; } catch { return ''; } })();
+
+  useEffect(() => {
+    const headers = { Authorization: `Bearer ${token}` };
+    fetch(`/api/sop/template/${encodeURIComponent(eventType)}`, { headers })
+      .then(r => r.json()).then(setSteps).catch(() => {});
+    fetch(`/api/sop/progress/${encodeURIComponent(eventId)}`, { headers })
+      .then(r => r.json()).then((rows: { step_idx: number; done: number }[]) => {
+        const p: Record<number, boolean> = {};
+        rows.forEach(r => { if (r.done) p[r.step_idx] = true; });
+        setProgress(p);
+      }).catch(() => {});
+  }, [eventId, eventType, token]);
+
+  if (steps.length === 0) return null;
+
+  const doneCount = steps.filter((_, i) => progress[i]).length;
+  const allDone = doneCount === steps.length;
+
+  const toggle = async (idx: number) => {
+    const newDone = !progress[idx];
+    setProgress(p => ({ ...p, [idx]: newDone }));
+    try {
+      await fetch(`/api/sop/progress/${encodeURIComponent(eventId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ step_idx: idx, done: newDone, done_by: userName }),
+      });
+    } catch {}
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="panel" style={{ flex: '0 0 auto' }}>
+      <div
+        className="panel-h"
+        style={{ cursor: 'pointer', userSelect: 'none' }}
+        onClick={() => setCollapsed(c => !c)}
+      >
+        <Icon name="ClipboardList" style={{ width: 15 }} />
+        <h3 style={{ flex: 1 }}>נוהל אירוע</h3>
+        {/* progress bar */}
+        <div style={{ width: 80, height: 4, background: 'var(--bg-3)', borderRadius: 2, overflow: 'hidden', margin: '0 8px' }}>
+          <div style={{
+            height: '100%',
+            width: `${(doneCount / steps.length) * 100}%`,
+            background: allDone ? '#22c55e' : 'var(--amber)',
+            borderRadius: 2,
+            transition: 'width 0.3s ease',
+          }} />
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 700, color: allDone ? '#22c55e' : 'var(--amber)', minWidth: 30, textAlign: 'left' }}>
+          {doneCount}/{steps.length}
+        </span>
+        <Icon name="ChevronDown" style={{ width: 13, marginRight: 4, transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.2s' }} />
+      </div>
+      {!collapsed && (
+        <div className="panel-b" style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {steps.map((step, i) => (
+            <div
+              key={i}
+              onClick={() => toggle(i)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                padding: '5px 8px', borderRadius: 6,
+                background: progress[i] ? 'rgba(34,197,94,0.07)' : 'transparent',
+                transition: 'background 0.15s',
+              }}
+            >
+              <div style={{
+                width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                border: `1.5px solid ${progress[i] ? '#22c55e' : 'var(--line-2)'}`,
+                background: progress[i] ? '#22c55e' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.15s',
+              }}>
+                {progress[i] && <Icon name="Check" style={{ width: 10, color: '#000' }} />}
+              </div>
+              <span style={{
+                fontSize: 12, flex: 1, lineHeight: 1.4,
+                color: progress[i] ? 'var(--ink-3)' : 'var(--ink-1)',
+                textDecoration: progress[i] ? 'line-through' : 'none',
+                transition: 'color 0.15s',
+              }}>
+                {step}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 // ── Main screen ───────────────────────────────────────────────────────────
 
 export function EmergencyScreen({ data, onClose }: EmergencyScreenProps) {
@@ -323,8 +424,9 @@ ${ev.description || 'לא הוזן תיאור'}
         </div>
       </div>
 
-      {/* ── COL 1: SITUATION + EVAC ──────────────────────────── */}
+      {/* ── COL 1: SOP + SITUATION + EVAC ───────────────────── */}
       <div className="col">
+        <SopPanel eventId={ev.id} eventType={ev.type} />
         {(!ev.forces || ev.forces.length === 0) && (
           <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid var(--red)', padding: '10px 14px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 10, color: '#ffb4b4', fontSize: 13, marginBottom: 15, animation: 'urgentGlow 2s infinite' }}>
             <Icon name="AlertTriangle" style={{ width: 16 }} />

@@ -407,10 +407,159 @@ function RosterPanel({ members, onRosterChange }: { members: DBRosterMember[], o
   );
 }
 
+// ── SopEditor section ──────────────────────────────────────────────────────
+
+function SopEditor() {
+  const [templates, setTemplates] = useState<{ event_type: string; steps: string[] }[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [editSteps, setEditSteps] = useState<string[]>([]);
+  const [newStep, setNewStep] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const fetchTemplates = async () => {
+    const token = localStorage.getItem('token');
+    const res = await fetch('/api/sop/templates', { headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) setTemplates(await res.json());
+  };
+
+  useEffect(() => { fetchTemplates(); }, []);
+
+  const selectType = (t: { event_type: string; steps: string[] }) => {
+    setSelected(t.event_type);
+    setEditSteps([...t.steps]);
+    setNewStep('');
+  };
+
+  const handleSave = async () => {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/sop/templates/${encodeURIComponent(selected)}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ steps: editSteps }),
+      });
+      if (res.ok) { toast('נוהל עודכן בהצלחה', 'success'); fetchTemplates(); }
+      else toast('שגיאה בשמירת הנוהל', 'error');
+    } finally { setSaving(false); }
+  };
+
+  const moveStep = (i: number, dir: -1 | 1) => {
+    setEditSteps(s => {
+      const a = [...s];
+      [a[i], a[i + dir]] = [a[i + dir], a[i]];
+      return a;
+    });
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: 14, height: '100%' }}>
+      {/* Type list */}
+      <div className="panel" style={{ width: 200, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+        <div className="panel-h"><Icon name="ClipboardList" style={{ width: 14 }} /><h3>סוגי אירועים</h3></div>
+        <div className="panel-b" style={{ padding: 0, flex: 1, overflowY: 'auto' }}>
+          {templates.map(t => (
+            <div
+              key={t.event_type}
+              onClick={() => selectType(t)}
+              style={{
+                padding: '10px 14px', cursor: 'pointer', fontSize: 13,
+                background: selected === t.event_type ? 'rgba(245,165,36,0.1)' : 'transparent',
+                borderRight: selected === t.event_type ? '2px solid var(--amber)' : '2px solid transparent',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                transition: 'background 0.12s',
+              }}
+            >
+              <span style={{ color: selected === t.event_type ? 'var(--amber)' : 'var(--ink-1)' }}>{t.event_type}</span>
+              <span style={{ fontSize: 10, color: 'var(--ink-4)' }}>{t.steps.length}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Step editor */}
+      <div style={{ flex: 1 }}>
+        {selected ? (
+          <div className="panel" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div className="panel-h">
+              <Icon name="ClipboardList" style={{ width: 14 }} />
+              <h3>נוהל: {selected}</h3>
+              <div className="spacer" />
+              <button className="btn brand sm" disabled={saving} onClick={handleSave}>
+                {saving ? 'שומר...' : 'שמור שינויים'}
+              </button>
+            </div>
+            <div className="panel-b" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, padding: 14 }}>
+              {editSteps.map((step, i) => (
+                <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <span style={{ color: 'var(--ink-4)', fontSize: 11, minWidth: 18, textAlign: 'center' }}>{i + 1}</span>
+                  <input
+                    className="input"
+                    style={{ flex: 1, fontSize: 13 }}
+                    value={step}
+                    onChange={e => setEditSteps(s => s.map((v, j) => j === i ? e.target.value : v))}
+                  />
+                  <button
+                    className="btn ghost icon-sm"
+                    disabled={i === 0}
+                    onClick={() => moveStep(i, -1)}
+                    title="הזז למעלה"
+                  >
+                    <Icon name="ChevronDown" style={{ width: 12, transform: 'rotate(180deg)' }} />
+                  </button>
+                  <button
+                    className="btn ghost icon-sm"
+                    disabled={i === editSteps.length - 1}
+                    onClick={() => moveStep(i, 1)}
+                    title="הזז למטה"
+                  >
+                    <Icon name="ChevronDown" style={{ width: 12 }} />
+                  </button>
+                  <button
+                    className="btn ghost-red icon-sm"
+                    onClick={() => setEditSteps(s => s.filter((_, j) => j !== i))}
+                  >
+                    <Icon name="Trash" style={{ width: 13 }} />
+                  </button>
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: 6, marginTop: 8, borderTop: '1px solid var(--border-1)', paddingTop: 12 }}>
+                <input
+                  className="input"
+                  style={{ flex: 1, fontSize: 13 }}
+                  placeholder="הוסף סעיף חדש..."
+                  value={newStep}
+                  onChange={e => setNewStep(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newStep.trim()) {
+                      setEditSteps(s => [...s, newStep.trim()]);
+                      setNewStep('');
+                    }
+                  }}
+                />
+                <button
+                  className="btn sm"
+                  disabled={!newStep.trim()}
+                  onClick={() => { setEditSteps(s => [...s, newStep.trim()]); setNewStep(''); }}
+                >הוסף</button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--ink-4)', fontSize: 14 }}>
+            בחר סוג אירוע משמאל לעריכת הנוהל
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main screen ────────────────────────────────────────────────────────────
 
 export function AdminScreen({ roster, onRosterChange }: { roster: DBRosterMember[], onRosterChange: () => void }) {
-  const [tab, setTab] = useState<'users' | 'roster'>('roster');
+  const [tab, setTab] = useState<'users' | 'roster' | 'sop'>('roster');
 
   return (
     <div style={{ padding: 20, height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -421,10 +570,13 @@ export function AdminScreen({ roster, onRosterChange }: { roster: DBRosterMember
         <button className={cn('btn sm', tab === 'users' && 'brand')} onClick={() => setTab('users')}>
           <Icon name="Shield" style={{ width: 14 }} /> משתמשי מערכת
         </button>
+        <button className={cn('btn sm', tab === 'sop' && 'brand')} onClick={() => setTab('sop')}>
+          <Icon name="ClipboardList" style={{ width: 14 }} /> נהלי אירוע
+        </button>
       </div>
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {tab === 'users' ? <UsersPanel /> : <RosterPanel members={roster} onRosterChange={onRosterChange} />}
+        {tab === 'users' ? <UsersPanel /> : tab === 'sop' ? <SopEditor /> : <RosterPanel members={roster} onRosterChange={onRosterChange} />}
       </div>
     </div>
   );

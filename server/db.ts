@@ -201,6 +201,86 @@ try { db.exec('ALTER TABLE approvals ADD COLUMN media TEXT'); } catch {}
   if (!feedCols.includes('media'))       db.exec('ALTER TABLE feed ADD COLUMN media TEXT');
 }
 try { db.exec('ALTER TABLE incidents ADD COLUMN map_coords TEXT DEFAULT ""'); } catch {}
+
+// SOP tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sop_templates (
+    event_type TEXT PRIMARY KEY,
+    steps TEXT NOT NULL DEFAULT '[]',
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS sop_progress (
+    event_id TEXT NOT NULL,
+    step_idx INTEGER NOT NULL,
+    done INTEGER NOT NULL DEFAULT 0,
+    done_by TEXT DEFAULT '',
+    done_at TEXT DEFAULT '',
+    PRIMARY KEY (event_id, step_idx)
+  );
+`);
+{
+  const sopCount = (db.prepare('SELECT count(*) as c FROM sop_templates').get() as { c: number }).c;
+  if (sopCount === 0) {
+    const DEFAULT_SOPS: Record<string, string[]> = {
+      'פח"ע - ישוב': [
+        'הזעק כוחות ביטחון לזירה',
+        'עדכן מנהל המשמרת',
+        'פתח ערוץ קשר עם כוח ראשון בזירה',
+        'עדכן מחוז / מטה',
+        'תעד שעת קבלת הדיווח בפיד',
+        'וודא הגעת מד"א / נת"צ',
+        'פתח תיק טיפול ורשום מספר אירוע',
+        'עדכון שוטף כל 15 דקות',
+      ],
+      'פח"ע ציר': [
+        'סגור ציר לתנועה (תיאום עם משטרה)',
+        'הזעק כוחות ביטחון',
+        'עדכן מנהל המשמרת',
+        'בדוק נפגעים ועדכן מד"א',
+        'תיעוד בפיד',
+        'תיאום ניקוי ציר עם גורמים רלוונטיים',
+        'עדכון שוטף כל 15 דקות',
+      ],
+      'ת"ד': [
+        'הזעק מד"א / נת"צ',
+        'עדכן משטרה (תנועה)',
+        'בדוק מספר נפגעים ועדכן',
+        'עדכן מנהל המשמרת',
+        'תיאום פינוי נפגעים',
+        'תיעוד בפיד',
+        'מעקב אחר ניקוי הזירה',
+      ],
+      'אר"ן': [
+        'הזעק אמבולנס / נת"צ',
+        'עדכן מנהל המשמרת',
+        'תיעוד בפיד',
+        'וודא הגעת כוחות ראשוניים',
+        'עדכן מחוז',
+      ],
+      'אסון טבע': [
+        'הזעק כוחות חילוץ והצלה',
+        'עדכן מנהל המשמרת',
+        'דווח לפיקוד העורף',
+        'תיאום עם הרשות המקומית',
+        'ארגון מוקד קבלה לנפגעים',
+        'תיעוד שוטף בפיד',
+        'עדכון מחוז כל 30 דקות',
+      ],
+      'אחר': [
+        'קבל פרטים מלאים מהמדווח',
+        'עדכן מנהל המשמרת',
+        'הזעק גורמים רלוונטיים',
+        'תיעוד בפיד',
+        'מעקב עד לסיום הטיפול',
+      ],
+    };
+    const sopStmt = db.prepare('INSERT OR IGNORE INTO sop_templates (event_type, steps) VALUES (?, ?)');
+    for (const [type, steps] of Object.entries(DEFAULT_SOPS)) {
+      sopStmt.run(type, JSON.stringify(steps));
+    }
+  }
+}
+
 // Indexes on v2 columns — must run after ALTER TABLE migrations above
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_incidents_deleted ON incidents(is_deleted)'); } catch {}
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_feed_deleted ON feed(is_deleted)'); } catch {}
