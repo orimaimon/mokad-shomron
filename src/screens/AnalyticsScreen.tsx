@@ -45,7 +45,7 @@ export function AnalyticsScreen() {
         // Format dates for trends
         setTrends(t.map((item: Trend) => ({
           ...item,
-          shortDate: new Date(item.date).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' })
+          shortDate: item.date.slice(5).replace('-', '/'),
         })));
         setTypes(d.types);
         setSeverity(d.severity);

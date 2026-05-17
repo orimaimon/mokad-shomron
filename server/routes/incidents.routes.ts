@@ -99,7 +99,7 @@ router.post('/:id/close', (req, res) => {
 
 // POST /:id/update — update an incident (with optimistic concurrency)
 router.post('/:id/update', validateBody(IncidentUpdateSchema), (req, res) => {
-  const { type, location, status, severity, version } = req.body as IncidentUpdateBody;
+  const { type, location, status, severity, version, map_coords } = req.body as IncidentUpdateBody;
   const { id } = req.params;
 
   const existing = db.prepare('SELECT * FROM incidents WHERE id = ? AND is_deleted = 0').get(id) as DBIncident | undefined;
@@ -108,9 +108,9 @@ router.post('/:id/update', validateBody(IncidentUpdateSchema), (req, res) => {
   const now = new Date().toISOString();
   const whereVersion = version !== undefined ? ' AND version = ?' : '';
   const params = version !== undefined
-    ? [type, location, status, severity, now, id, version]
-    : [type, location, status, severity, now, id];
-  const result = db.prepare(`UPDATE incidents SET type = ?, location = ?, status = ?, severity = ?, version = version + 1, updated_at = ? WHERE id = ? AND is_deleted = 0${whereVersion}`)
+    ? [type, location, status, severity, map_coords ?? existing.map_coords ?? '', now, id, version]
+    : [type, location, status, severity, map_coords ?? existing.map_coords ?? '', now, id];
+  const result = db.prepare(`UPDATE incidents SET type = ?, location = ?, status = ?, severity = ?, map_coords = ?, version = version + 1, updated_at = ? WHERE id = ? AND is_deleted = 0${whereVersion}`)
     .run(...params);
 
   if (result.changes === 0) {

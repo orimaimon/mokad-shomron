@@ -40,6 +40,7 @@ export interface DBIncident {
   version: number;
   is_deleted: number;
   deleted_at: string | null;
+  map_coords: string;
 }
 
 export interface DBFeed {
@@ -152,6 +153,7 @@ export const IncidentAddSchema = z.object({
 export const IncidentUpdateSchema = IncidentAddSchema.extend({
   status: z.string().min(1),
   version: z.number().int().optional(),
+  map_coords: z.string().optional(),
 });
 
 export const FeedAddSchema = z.object({

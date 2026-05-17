@@ -1,28 +1,34 @@
 import { Router } from 'express';
 import https from 'https';
+import type { ServerResponse } from 'http';
 
 const router = Router();
 
-router.get('/kml', (req, res) => {
-  const kmlUrl = 'https://www.google.com/maps/d/kml?mid=16VL3nmAMv2aha47jz_jdtykSXq-Mx74&forcekml=1';
+const MAX_REDIRECTS = 5;
 
-  https.get(kmlUrl, (googleRes) => {
-    // Handle redirects (Google sometimes redirects to another server for KML)
-    if (googleRes.statusCode && googleRes.statusCode >= 300 && googleRes.statusCode < 400 && googleRes.headers.location) {
-      https.get(googleRes.headers.location, (redirectRes) => {
-        res.setHeader('Content-Type', 'application/vnd.google-earth.kml+xml');
-        redirectRes.pipe(res);
-      }).on('error', (e) => {
-        res.status(500).json({ error: 'Failed to follow redirect for KML', details: e.message });
-      });
+function fetchWithRedirects(url: string, res: ServerResponse, remaining: number): void {
+  if (remaining === 0) {
+    res.statusCode = 500;
+    res.end(JSON.stringify({ error: 'Too many redirects fetching KML' }));
+    return;
+  }
+  https.get(url, (upstream) => {
+    if (upstream.statusCode && upstream.statusCode >= 300 && upstream.statusCode < 400 && upstream.headers.location) {
+      upstream.resume(); // drain and discard redirect body
+      fetchWithRedirects(upstream.headers.location, res, remaining - 1);
       return;
     }
-
-    res.setHeader('Content-Type', 'application/vnd.google-earth.kml+xml');
-    googleRes.pipe(res);
+    (res as any).setHeader('Content-Type', 'application/vnd.google-earth.kml+xml');
+    upstream.pipe(res);
   }).on('error', (e) => {
-    res.status(500).json({ error: 'Failed to fetch KML', details: e.message });
+    res.statusCode = 500;
+    res.end(JSON.stringify({ error: 'Failed to fetch KML', details: e.message }));
   });
+}
+
+router.get('/kml', (req, res) => {
+  const kmlUrl = 'https://www.google.com/maps/d/kml?mid=16VL3nmAMv2aha47jz_jdtykSXq-Mx74&forcekml=1';
+  fetchWithRedirects(kmlUrl, res as any, MAX_REDIRECTS);
 });
 
 export default router;

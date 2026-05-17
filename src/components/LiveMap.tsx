@@ -163,6 +163,7 @@ export function LiveMap({ incidents, roster, activeEvent }: LiveMapProps) {
   // Initialize map
   useEffect(() => {
     if (!mapRef.current) return;
+    if (typeof L === 'undefined') return; // Leaflet CDN not yet loaded
 
     if (!mapInstance.current) {
       const map = L.map(mapRef.current, {

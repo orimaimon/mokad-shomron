@@ -36,29 +36,34 @@ export function MobileScreen({ data }: { data: { activeEvent: { startedAt: numbe
   }, []);
 
   useEffect(() => {
-    if (isOnline && offlineQueue.length > 0) {
-      const flush = async () => {
-        let q = [...offlineQueue];
-        let synced = 0;
-        for (let i = 0; i < q.length; i++) {
-          try {
-            await fetch('/api/approvals', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(q[i]),
-            });
-            q = q.slice(i + 1); // remove sent item
-            i = -1; // restart from head of remaining queue
-            synced++;
-            localStorage.setItem('offline_reports', JSON.stringify(q)); // persist immediately
-          } catch { break; }
-        }
-        setOfflineQueue(q);
-        if (synced > 0) toast(`סונכרנו ${synced} דיווחים בהצלחה`, 'success');
-      };
-      flush();
-    }
-  }, [isOnline]); // intentionally re-run only when coming back online
+    if (!isOnline) return;
+    // Read directly from localStorage to avoid stale closure over offlineQueue state
+    const stored: any[] = JSON.parse(localStorage.getItem('offline_reports') || '[]');
+    if (stored.length === 0) return;
+
+    const flush = async () => {
+      const token = sessionStorage.getItem('mobile_token');
+      const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+      let q = [...stored];
+      let synced = 0;
+      for (let i = 0; i < q.length; i++) {
+        try {
+          await fetch('/api/approvals', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeader },
+            body: JSON.stringify(q[i]),
+          });
+          q = q.slice(i + 1);
+          i = -1;
+          synced++;
+          localStorage.setItem('offline_reports', JSON.stringify(q));
+        } catch { break; }
+      }
+      setOfflineQueue(q);
+      if (synced > 0) toast(`סונכרנו ${synced} דיווחים בהצלחה`, 'success');
+    };
+    flush();
+  }, [isOnline]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -94,7 +99,12 @@ export function MobileScreen({ data }: { data: { activeEvent: { startedAt: numbe
         // upload video to server
         const fd = new FormData();
         fd.append('file', file);
-        const res = await fetch('/api/media/upload', { method: 'POST', body: fd });
+        const token = sessionStorage.getItem('mobile_token');
+        const res = await fetch('/api/media/upload', {
+          method: 'POST',
+          body: fd,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         if (!res.ok) throw new Error('upload failed');
         const { url } = await res.json();
         setMedia(url as string);
@@ -122,9 +132,13 @@ export function MobileScreen({ data }: { data: { activeEvent: { startedAt: numbe
 
     setSending(true);
     try {
+      const token = sessionStorage.getItem('mobile_token');
       const res = await fetch('/api/approvals', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       });
       if (res.ok) {
