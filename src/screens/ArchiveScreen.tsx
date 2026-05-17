@@ -613,21 +613,7 @@ function ShiftReportContent({ data }: { data: ShiftReportData }) {
           </table>
         </>
       )}
-
-      <Signature />
     </>
-  );
-}
-
-// ── Signature block ───────────────────────────────────────────────────────
-
-function Signature() {
-  return (
-    <div className="rp-sig" style={{ marginTop: 40 }}>
-      <div className="line">חתימת קצין מוקד</div>
-      <div className="line">חתימת מפקד שו"ב</div>
-      <div className="line">חותמת</div>
-    </div>
   );
 }
 
@@ -664,6 +650,8 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
   const [selectedEventId, setSelectedEventId] = useState('');
   const [archiveSearch, setArchiveSearch] = useState('');
   const [archiveStatus, setArchiveStatus] = useState('');
+  const [shiftSearch, setShiftSearch] = useState('');
+  const [shiftStatus, setShiftStatus] = useState('');
   const [archiveKind, setArchiveKind] = useState<'events' | 'shifts'>('events');
   const [dailyDate, setDailyDate] = useState('');
   const [shifts, setShifts] = useState<ArchivedShift[]>([]);
@@ -1027,40 +1015,80 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
             )}
 
             {archiveKind === 'shifts' && (
-              <div className="panel-b" style={{ padding: 0, overflow: 'auto', flex: 1 }}>
-                {shifts.length === 0 ? (
-                  <div style={{ padding: 20, color: 'var(--ink-4)', textAlign: 'center', fontSize: 13 }}>אין משמרות</div>
-                ) : shifts.map(s => (
-                  <div
-                    key={s.id}
-                    style={{ padding: '10px 14px', borderBottom: '1px solid var(--border-1)', cursor: 'pointer', transition: 'background .12s' }}
-                    onClick={async () => {
-                      setLoading(true); setError(''); setTab('generate');
-                      try {
-                        const res = await fetch(`/api/reports/shift/${s.id}`);
-                        if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
-                        setReportData({ reportKind: 'shift', ...(await res.json()) });
-                      } catch (e) {
-                        setError(e instanceof Error ? e.message : 'שגיאה');
-                      } finally { setLoading(false); }
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.03)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = '')}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600, fontSize: 13 }}>{s.manager_name}</span>
-                      <span className={cn('tag sm', s.status === 'active' ? 'red' : 'green')}>{s.status === 'active' ? 'פעילה' : 'סגורה'}</span>
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>
-                      {new Date(s.start_time).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                      {s.end_time ? ` — ${new Date(s.end_time).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}` : ' (פעילה)'}
-                    </div>
-                    {s.dispatchers.length > 0 && (
-                      <div style={{ fontSize: 10, color: 'var(--ink-4)', marginTop: 2 }}>{s.dispatchers.join(', ')}</div>
+              <>
+                <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border-1)', background: 'var(--bg-1)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Icon name="Search" style={{ width: 14, color: 'var(--ink-4)', alignSelf: 'center', flexShrink: 0 }} />
+                    <input
+                      className="input" style={{ fontSize: 12, padding: '4px 8px' }}
+                      placeholder="חיפוש לפי מנהל / מוקדנים / תאריך..."
+                      value={shiftSearch} onChange={e => setShiftSearch(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <select className="input" style={{ fontSize: 12, padding: '4px 6px', flex: 1 }} value={shiftStatus} onChange={e => setShiftStatus(e.target.value)}>
+                      <option value="">כל המשמרות</option>
+                      <option value="active">פעילה</option>
+                      <option value="closed">סגורה</option>
+                    </select>
+                    {(shiftSearch || shiftStatus) && (
+                      <button className="btn ghost-red icon-sm" onClick={() => { setShiftSearch(''); setShiftStatus(''); }} title="נקה">
+                        <Icon name="X" style={{ width: 11 }} />
+                      </button>
                     )}
                   </div>
-                ))}
-              </div>
+                </div>
+                <div className="panel-b" style={{ padding: 0, overflow: 'auto', flex: 1 }}>
+                  {(() => {
+                    const q = shiftSearch.toLowerCase();
+                    const filtered = shifts.filter(s => {
+                      if (q) {
+                        const dateStr = new Date(s.start_time).toLocaleDateString('he-IL');
+                        const dispatchersStr = s.dispatchers.join(' ').toLowerCase();
+                        if (!s.manager_name.toLowerCase().includes(q) && !dispatchersStr.includes(q) && !dateStr.includes(q)) return false;
+                      }
+                      if (shiftStatus === 'active' && s.status !== 'active') return false;
+                      if (shiftStatus === 'closed' && s.status === 'active') return false;
+                      return true;
+                    });
+
+                    if (filtered.length === 0) return (
+                      <div style={{ padding: 20, color: 'var(--ink-4)', textAlign: 'center', fontSize: 13 }}>אין תוצאות</div>
+                    );
+
+                    return filtered.map(s => (
+                      <div
+                        key={s.id}
+                        style={{ padding: '10px 14px', borderBottom: '1px solid var(--border-1)', cursor: 'pointer', transition: 'background .12s' }}
+                        onClick={async () => {
+                          setLoading(true); setError(''); setTab('generate');
+                          try {
+                            const res = await fetch(`/api/reports/shift/${s.id}`);
+                            if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
+                            setReportData({ reportKind: 'shift', ...(await res.json()) });
+                          } catch (e) {
+                            setError(e instanceof Error ? e.message : 'שגיאה');
+                          } finally { setLoading(false); }
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.03)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = '')}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 600, fontSize: 13 }}>{s.manager_name}</span>
+                          <span className={cn('tag sm', s.status === 'active' ? 'red' : 'green')}>{s.status === 'active' ? 'פעילה' : 'סגורה'}</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>
+                          {new Date(s.start_time).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                          {s.end_time ? ` — ${new Date(s.end_time).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}` : ' (פעילה)'}
+                        </div>
+                        {s.dispatchers.length > 0 && (
+                          <div style={{ fontSize: 10, color: 'var(--ink-4)', marginTop: 2 }}>{s.dispatchers.join(', ')}</div>
+                        )}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </>
             )}
           </div>
         )}

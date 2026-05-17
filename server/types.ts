@@ -124,6 +124,7 @@ export const RosterAddSchema = z.object({
   phone: z.string().optional(),
   operational_phone: z.string().optional(),
   state: z.string().optional(),
+  map_coords: z.string().optional(),
 });
 
 export const RosterEditSchema = RosterAddSchema;
@@ -137,6 +138,7 @@ export const RosterUpdateSchema = z.object({
   return_time: z.string().optional(),
   phone: z.string().optional(),
   operational_phone: z.string().optional(),
+  map_coords: z.string().optional(),
   version: z.number().int().optional(),
 });
 
@@ -144,6 +146,7 @@ export const IncidentAddSchema = z.object({
   type: z.string().min(1),
   location: z.string().min(1),
   severity: z.string().optional(),
+  map_coords: z.string().optional(),
 });
 
 export const IncidentUpdateSchema = IncidentAddSchema.extend({
@@ -167,6 +170,7 @@ export const EmergencyStartSchema = z.object({
   grid: z.string().optional(),
   scene_name: z.string().optional(),
   description: z.string().optional(),
+  map_coords: z.string().optional(),
 });
 
 export const EmergencyUpdateSchema = z.object({

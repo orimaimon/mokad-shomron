@@ -39,7 +39,16 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git push *)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(npm install *)",
+      "Bash(npm --version)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\orima\\\\Desktop\\\\coding\\\\mokad-shomron\\\\server\" -Recurse | Where-Object { !$_.PSIsContainer } | Select-Object Name, Length, LastWriteTime | Sort-Object LastWriteTime -Descending | Select-Object -First 20)",
+      "Bash(npx tsx *)",
+      "Bash(curl -s http://localhost:3000/api/reports/daily)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('roster:', len\\(d['roster']\\), '| incidents:', len\\(d['incidents']\\), '| feed:', len\\(d['feed']\\)\\)\")",
+      "Bash(findstr /i \"pdf\\\\|print\\\\|html2\")",
+      "Bash(Remove-Item *)",
+      "Bash(del *)"
     ]
   }
 }

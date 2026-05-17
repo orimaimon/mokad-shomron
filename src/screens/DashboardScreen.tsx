@@ -3,7 +3,7 @@ import { Icon } from '../components/Icons';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { LiveMap } from '../components/LiveMap';
-import { RosterMember, DBRosterMember, DBIncident, DBFeedItem } from '../types';
+import { RosterMember, DBRosterMember, DBIncident, DBFeedItem, ActiveEvent } from '../types';
 
 interface DashboardIncident {
   id: number;
@@ -25,14 +25,23 @@ export function DashboardScreen() {
   const [feed, setFeed] = useState<DBFeedItem[]>([]);
   const [time, setTime] = useState(new Date());
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [activeEvent, setActiveEvent] = useState<ActiveEvent | null>(null);
 
   const fetchData = async () => {
     try {
-      const [resRoster, resInc, resFeed] = await Promise.all([
+      const [resRoster, resInc, resFeed, resEmergency] = await Promise.all([
         fetch('/api/roster').then(r => r.json()),
         fetch('/api/incidents').then(r => r.json()),
         fetch('/api/feed').then(r => r.json()),
+        fetch('/api/emergency/active').then(r => r.json()).catch(() => null),
       ]);
+
+      // Set active emergency event
+      if (resEmergency && resEmergency.id) {
+        setActiveEvent(resEmergency);
+      } else {
+        setActiveEvent(null);
+      }
 
       setRoster((resRoster as DBRosterMember[]).map((item) => ({
         ...item,
@@ -147,7 +156,7 @@ export function DashboardScreen() {
             <span className="live-tag" style={{ background: 'var(--blue)', color: '#fff' }}>LIVE</span>
           </div>
           <div style={{ flex: 1, position: 'relative', background: '#111', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
-            {data ? <LiveMap incidents={data.incidents as any} /> : null}
+            {data ? <LiveMap incidents={data.incidents as any} roster={roster} activeEvent={activeEvent} /> : null}
           </div>
         </div>
 

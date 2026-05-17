@@ -24,7 +24,7 @@ router.get('/active', (req, res) => {
 });
 
 router.post('/start', validateBody(EmergencyStartSchema), (req, res) => {
-  const { type, location, grid, scene_name, description } = req.body as EmergencyStartBody;
+  const { type, location, grid, scene_name, description, map_coords } = req.body as EmergencyStartBody;
   const id = `EV-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`;
   const started_at = Date.now();
   const snapshot_at = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
@@ -33,9 +33,9 @@ router.post('/start', validateBody(EmergencyStartSchema), (req, res) => {
   db.prepare('UPDATE active_event SET is_active = 0 WHERE is_active = 1').run();
 
   db.prepare(`
-    INSERT INTO active_event (id, type, location, grid, scene_name, started_at, snapshot_at, description, is_active)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-  `).run(id, type, location, grid || '', scene_name || '', started_at, snapshot_at, description || '');
+    INSERT INTO active_event (id, type, location, grid, scene_name, started_at, snapshot_at, description, map_coords, is_active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+  `).run(id, type, location, grid || '', scene_name || '', started_at, snapshot_at, description || '', map_coords || '');
 
   // Initial system log
   db.prepare('INSERT INTO feed (time, src, text, urgent, system, event_id) VALUES (?, ?, ?, 1, 1, ?)').run(

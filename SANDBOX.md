@@ -62,8 +62,24 @@
 | `ManagementScreen` | ניהול מוקד: אישור דיווחים, הזנה ידנית, סיווג מקור |
 | `ArchiveScreen` | דוחות: שגרה / אירוע / כוח אדם / משמרת / OSINT + PDF/XLSX |
 | `ShiftScreen` | פתיחת/סגירת משמרת, חפ"ק |
-| `MobileScreen` | ממשק שדה: OTP → שליחת דיווח לאישור |
+| `MobileScreen` | אפליקציית שטח PWA עצמאית — כניסה בדוא"ל+סיסמה → שליחת דיווח לאישור |
 | `AdminScreen` | CRUD משתמשים (admin בלבד) |
+
+---
+
+## ניתוב (Routing)
+
+| נתיב | התנהגות |
+|------|---------|
+| `/` | אפליקציית המוקד השולחנית הרגילה (Sidebar + TopHeader) |
+| `/mobile` | אפליקציית שטח עצמאית — ללא Sidebar/TopHeader, viewport=device-width |
+
+### MobileScreen — Standalone PWA Mode
+- `main.tsx` מזהה נתיב `/mobile` ומחליף את ה-viewport meta tag ל-`width=device-width, viewport-fit=cover`
+- `App.tsx` מדלג על כל מעטפת השולחן ומרנדר `MobileScreen` בלבד
+- מחלקות CSS ייעודיות: `.standalone-stage`, `.standalone-phone`, `.standalone-screen`
+- תמיכה ב-safe-area-insets לאייפון (notch)
+- האפליקציה מתנהגת כ-PWA: ניתן להוסיף למסך הבית עם "Add to Home Screen"
 
 ---
 
@@ -82,7 +98,7 @@
 | `/api/reports` | reports.routes.ts | GET /daily, GET /event/:id, GET /roster, GET /shift/:id, GET /osint |
 | `/api/audit` | audit.routes.ts | GET (admin only) |
 | `/api/admin` | admin.routes.ts | GET /users, POST /users, PUT /users/:id, DELETE /users/:id |
-| `/api/mobile` | mobile.routes.ts | POST /request-otp, POST /verify-otp |
+| `/api/mobile` | mobile.routes.ts | POST /request-otp, POST /verify-otp, GET /otp (admin) — *לגאסי, לא בשימוש* |
 | `/uploads/*` | static | JWT auth via query param `?token=` |
 
 ---
@@ -113,9 +129,15 @@
 4. סגירה: `POST /api/emergency/close`
 
 **Approvals (field reports):**
-1. שטח שולח דרך `MobileScreen` → `POST /api/approvals` (src_type defaults to 'field')
-2. מוקדן רואה ב-`ManagementScreen` ולוחץ "אשר ופרסם"
-3. `POST /api/approvals/:id/approve` → INSERT לתוך `feed` עם src_type מהאישור
+1. איש שטח נכנס ל-`domain/mobile` ומתחבר עם דוא"ל + סיסמה (`POST /api/login`)
+2. שולח דיווח → `POST /api/approvals` (src_type defaults to 'field')
+3. מוקדן רואה ב-`ManagementScreen` ולוחץ "אשר ופרסם"
+4. `POST /api/approvals/:id/approve` → INSERT לתוך `feed` עם src_type מהאישור
+
+**Mobile auth flow:**
+- כניסה: טופס email + password → `POST /api/login` → token + user נשמרים ב-`sessionStorage`
+- יציאה מהאפליקציה / סגירת הדפדפן → sessionStorage נמחק, נדרשת כניסה מחדש
+- כפתור "התנתק" בטאב "אני"
 
 **Media upload:**
 - תמונות: דחיסה client-side לפני העלאה
@@ -143,15 +165,23 @@
 - [x] feed.created_at TEXT (ללא DEFAULT — SQLite לא מקבל CURRENT_TIMESTAMP ב-ALTER)
 - [x] סיווג מקור דיווח (src_type: internal/field/osint) נשמר ועובר דרך approval flow
 - [x] סוג אירוע שגרה: select עם קטגוריות מוגדרות (במקום free text)
+- [x] **MobileScreen → Standalone PWA**: נתיב `/mobile` עם viewport נפרד, ללא sidebar/header
+- [x] **Mobile auth**: החלפת OTP בכניסת email+password רגילה (sessionStorage)
+- [x] **AnalyticsScreen**: מסך סטטיסטיקות ומגמות (BI Dashboard) עם גרפים מבוססי `recharts`.
 
 ---
 
 ## ידוע / ממתין
 
-- [ ] MobileScreen: UI מלא לשדה (OTP זורם, אך עיצוב ממתין לשיפור)
 - [ ] DashboardScreen: מצלמות סימולציה — לא חיות
-- [ ] ArchiveScreen: חיפוש/פילטר בדוחות ישנים
+- [x] ArchiveScreen: חיפוש/פילטר בדוחות ישנים
 - [ ] אין tests אוטומטיים
+- [ ] mobile.routes.ts (OTP) — קוד לגאסי, ניתן להסיר
+- [ ] ניהול נהלים (SOP Checklists): הוספת רשימת משימות אוטומטית לפי סוג אירוע ב-EmergencyScreen.
+- [ ] מערכת התראות (Alerts): צלילים והתראות Toast בולטות כשיש דיווחי שדה חדשים או אירועי חירום.
+- [x] מפת תמונת מצב (COP): מפה חיה וגדולה ב-Dashboard המציגה אירועים, כוחות ורדיוסים בזמן אמת.
+- [ ] תמיכה מלאה באופליין לאפליקציית שטח (Offline-First Sync): שמירת דיווחים למסד נתונים מקומי (IndexedDB) באפליקציית ה-Mobile כשהקליטה נופלת, וסנכרון אוטומטי בחזרה לשרת.
+- [ ] אינטגרציות חיצוניות: חיבור ל-API של פיקוד העורף (צבע אדום) או מערכות שליחת SMS (הקפצת כיתת כוננות מתוך המערכת).
 
 ---
 
@@ -160,6 +190,8 @@
 ```
 81f2e67 fix: event type category selector + approval src_type passthrough
 ```
+
+*(לא עודכן ב-git מאז — שינויים ב-MobileScreen, ManagementScreen, App.tsx, main.tsx, index.css)*
 
 ---
 
@@ -173,3 +205,5 @@ npm run server     # production mode (מגיש dist/ + API)
 ```
 
 **ברירת מחדל:** `admin@mokad.org` / `admin123`
+
+**אפליקציית שטח:** `http://[domain]/mobile`

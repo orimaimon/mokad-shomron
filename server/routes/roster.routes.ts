@@ -13,7 +13,7 @@ router.get('/', (req, res) => {
 });
 
 router.post('/update', validateBody(RosterUpdateSchema), (req, res) => {
-  const { id, is_out_of_sector, replacement, replacement_phone, state, return_time, phone, operational_phone, version } = req.body as RosterUpdateBody;
+  const { id, is_out_of_sector, replacement, replacement_phone, state, return_time, phone, operational_phone, map_coords, version } = req.body as RosterUpdateBody;
 
   const existing = db.prepare('SELECT * FROM roster WHERE id = ? AND is_deleted = 0').get(id) as DBRoster | undefined;
   if (!existing) return res.status(404).json({ error: 'בעל תפקיד לא נמצא' });
@@ -27,13 +27,14 @@ router.post('/update', validateBody(RosterUpdateSchema), (req, res) => {
     return_time || '',
     phone || '',
     operational_phone || '',
+    map_coords || '',
     id,
     ...(version !== undefined ? [version] : []),
   ];
   const result = db.prepare(`
     UPDATE roster SET
       is_out_of_sector = ?, replacement = ?, replacement_phone = ?,
-      state = ?, return_time = ?, phone = ?, operational_phone = ?,
+      state = ?, return_time = ?, phone = ?, operational_phone = ?, map_coords = ?,
       version = version + 1
     WHERE id = ? AND is_deleted = 0${whereVersion}
   `).run(...runParams);
@@ -55,7 +56,7 @@ router.post('/update', validateBody(RosterUpdateSchema), (req, res) => {
     entityType: 'roster',
     entityId: String(id),
     previousState: existing,
-    newState: { is_out_of_sector, replacement, state, phone, operational_phone },
+    newState: { is_out_of_sector, replacement, state, phone, operational_phone, map_coords },
   });
 
   emit('roster:changed');
@@ -63,18 +64,18 @@ router.post('/update', validateBody(RosterUpdateSchema), (req, res) => {
 });
 
 router.post('/add', validateBody(RosterAddSchema), (req, res) => {
-  const { name, role, task, phone, operational_phone, state } = req.body as RosterAddBody;
+  const { name, role, task, phone, operational_phone, state, map_coords } = req.body as RosterAddBody;
   const result = db.prepare(`
-    INSERT INTO roster (name, role, task, out_time, state, is_out_of_sector, replacement, phone, operational_phone)
-    VALUES (?, ?, ?, ?, ?, 0, '', ?, ?)
-  `).run(name, role || '', task || '', new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), state || 'field', phone || '', operational_phone || '');
+    INSERT INTO roster (name, role, task, out_time, state, is_out_of_sector, replacement, phone, operational_phone, map_coords)
+    VALUES (?, ?, ?, ?, ?, 0, '', ?, ?, ?)
+  `).run(name, role || '', task || '', new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), state || 'field', phone || '', operational_phone || '', map_coords || '');
 
   logAction({
     ...auditUser(req),
     actionType: 'create',
     entityType: 'roster',
     entityId: String(result.lastInsertRowid),
-    newState: { name, role, task, state: state || 'field' },
+    newState: { name, role, task, state: state || 'field', map_coords },
   });
 
   emit('roster:changed');
@@ -82,14 +83,14 @@ router.post('/add', validateBody(RosterAddSchema), (req, res) => {
 });
 
 router.post('/:id/edit', validateBody(RosterEditSchema), (req, res) => {
-  const { name, role, task, phone, operational_phone, state } = req.body as RosterEditBody;
+  const { name, role, task, phone, operational_phone, state, map_coords } = req.body as RosterEditBody;
   const { id } = req.params;
 
   const existing = db.prepare('SELECT * FROM roster WHERE id = ? AND is_deleted = 0').get(id) as DBRoster | undefined;
   if (!existing) return res.status(404).json({ error: 'בעל תפקיד לא נמצא' });
 
-  db.prepare('UPDATE roster SET name = ?, role = ?, task = ?, phone = ?, operational_phone = ?, state = ?, version = version + 1 WHERE id = ?')
-    .run(name, role || '', task || '', phone || '', operational_phone || '', state || 'field', id);
+  db.prepare('UPDATE roster SET name = ?, role = ?, task = ?, phone = ?, operational_phone = ?, state = ?, map_coords = ?, version = version + 1 WHERE id = ?')
+    .run(name, role || '', task || '', phone || '', operational_phone || '', state || 'field', map_coords || '', id);
 
   logAction({
     ...auditUser(req),
@@ -97,7 +98,7 @@ router.post('/:id/edit', validateBody(RosterEditSchema), (req, res) => {
     entityType: 'roster',
     entityId: String(id),
     previousState: existing,
-    newState: { name, role, task, phone, operational_phone, state },
+    newState: { name, role, task, phone, operational_phone, state, map_coords },
   });
 
   emit('roster:changed');

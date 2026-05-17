@@ -40,10 +40,10 @@ router.get('/', (req, res) => {
 
 // POST / — create a new incident
 router.post('/', validateBody(IncidentAddSchema), (req, res) => {
-  const { type, location, severity } = req.body as IncidentAddBody;
+  const { type, location, severity, map_coords } = req.body as IncidentAddBody;
   const now = new Date().toISOString();
-  const result = db.prepare('INSERT INTO incidents (type, location, status, severity, updated_at) VALUES (?, ?, ?, ?, ?)').run(
-    type, location, 'בטיפול', severity || 'amber', now
+  const result = db.prepare('INSERT INTO incidents (type, location, status, severity, updated_at, map_coords) VALUES (?, ?, ?, ?, ?, ?)').run(
+    type, location, 'בטיפול', severity || 'amber', now, map_coords || ''
   );
   const time = new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
   db.prepare('INSERT INTO feed (time, src, text, urgent, system) VALUES (?, ?, ?, ?, 1)').run(

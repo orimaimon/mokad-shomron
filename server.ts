@@ -22,6 +22,8 @@ import approvalsRoutes from './server/routes/approvals.routes.js';
 import auditRoutes from './server/routes/audit.routes.js';
 import mobileRoutes from './server/routes/mobile.routes.js';
 import mediaRoutes from './server/routes/media.routes.js';
+import analyticsRoutes from './server/routes/analytics.routes.js';
+import mapRoutes from './server/routes/map.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -45,6 +47,8 @@ async function startServer() {
   app.use('/api/audit', auditRoutes);
   app.use('/api/mobile', mobileRoutes);
   app.use('/api/media', mediaRoutes);
+  app.use('/api/analytics', analyticsRoutes);
+  app.use('/api/map', mapRoutes);
   app.use('/uploads', requireAuthQuery, express.static(path.join(__dirname, 'uploads')));
 
   // --- VITE MIDDLEWARE ---

@@ -10,6 +10,7 @@ import { MobileScreen } from './screens/MobileScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { AdminScreen } from './screens/AdminScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
+import { AnalyticsScreen } from './screens/AnalyticsScreen';
 import { ShiftScreen } from './screens/ShiftScreen';
 import { OfflineBanner } from './components/OfflineBanner';
 import { HotkeyHelp } from './components/HotkeyHelp';
@@ -33,6 +34,7 @@ const NAV_ITEMS = [
   { k: 'manage', label: 'ניהול מוקד', icon: 'Settings', hotkey: '3' },
   { k: 'shifts', label: 'יומן משמרת', icon: 'Clock', hotkey: '' },
   { k: 'archive', label: 'ארכיון ודוחות', icon: 'Archive', hotkey: '4' },
+  { k: 'analytics', label: 'סטטיסטיקות', icon: 'BarChart2', hotkey: '' },
   { k: 'mobile', label: 'ממשק מדווח', icon: 'User', hotkey: '' },
   { k: 'admin', label: 'ניהול מערכת', icon: 'Shield', admin: true, hotkey: '' },
 ];
@@ -394,7 +396,7 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [emergencyActive, setEmergencyActive] = useState(false);
-  const [screen, setScreen] = useState('routine');
+  const [screen, setScreen] = useState(window.location.pathname === '/mobile' ? 'mobile' : 'routine');
   const [showOpenModal, setShowOpenModal] = useState(false);
   const [showHotkeyHelp, setShowHotkeyHelp] = useState(false);
   const [showNewRoutineIncident, setShowNewRoutineIncident] = useState(false);
@@ -722,8 +724,22 @@ function App() {
     body = <AdminScreen roster={roster} onRosterChange={refreshRoster} />;
   } else if (screen === 'dashboard') {
     body = <DashboardScreen />;
+  } else if (screen === 'analytics') {
+    body = <AnalyticsScreen />;
   } else if (screen === 'shifts') {
     body = <ShiftScreen data={fullData} user={user!} />;
+  }
+
+  const isStandaloneMobile = window.location.pathname === '/mobile';
+
+  if (isStandaloneMobile && screen === 'mobile') {
+    return (
+      <div className="standalone-mobile-root" style={{ width: '100vw', height: '100vh', overflow: 'hidden', background: 'var(--bg-0)' }}>
+        <OfflineBanner />
+        <MobileScreen data={fullData} />
+        <ToastProvider />
+      </div>
+    );
   }
 
   return (

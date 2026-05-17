@@ -40,6 +40,7 @@ export interface DBRosterMember {
   replacement_phone: string;
   phone: string;
   operational_phone: string;
+  map_coords: string;
   version: number;
 }
 
@@ -200,6 +201,7 @@ export interface RosterMember {
   replacement_phone?: string;
   phone?: string;
   operational_phone?: string;
+  map_coords?: string;
   version?: number;
 }
 

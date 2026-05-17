@@ -6,6 +6,7 @@ import { cn, getRosterStateConfig } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from '../components/Toast';
 import { Lightbox, MediaInline } from '../components/MediaViewer';
+import { MapPicker } from '../components/MapPicker';
 
 interface RoutineScreenProps {
   data: MokadData;
@@ -28,6 +29,8 @@ function RosterUpdateModal({ person, onClose, onSave, onDelete }: { person: Rost
   const [returnTime, setReturnTime] = useState(person.returnTime || '');
   const [phone, setPhone] = useState(person.phone || '');
   const [operationalPhone, setOperationalPhone] = useState(person.operational_phone || '');
+  const [mapCoords, setMapCoords] = useState(person.map_coords || '');
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -45,7 +48,7 @@ function RosterUpdateModal({ person, onClose, onSave, onDelete }: { person: Rost
       await fetch(`/api/roster/${person.id}/edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, role, task, phone, operational_phone: operationalPhone, state: isOut ? 'out' : personState })
+        body: JSON.stringify({ name, role, task, phone, operational_phone: operationalPhone, state: isOut ? 'out' : personState, map_coords: mapCoords })
       });
       const res = await fetch('/api/roster/update', {
         method: 'POST',
@@ -58,11 +61,12 @@ function RosterUpdateModal({ person, onClose, onSave, onDelete }: { person: Rost
           return_time: returnTime,
           phone,
           operational_phone: operationalPhone,
-          state: isOut ? 'out' : personState
+          state: isOut ? 'out' : personState,
+          map_coords: mapCoords
         }),
       });
       if (res.ok) {
-        onSave({ ...person, name, role, task, isOutOfSector: isOut, replacement, returnTime, phone, operational_phone: operationalPhone, state: isOut ? 'out' : personState });
+        onSave({ ...person, name, role, task, isOutOfSector: isOut, replacement, returnTime, phone, operational_phone: operationalPhone, state: isOut ? 'out' : personState, map_coords: mapCoords });
         toast('בעל התפקיד עודכן בהצלחה', 'success');
       } else {
         toast('שגיאה בעדכון בעל התפקיד', 'error');
@@ -75,6 +79,7 @@ function RosterUpdateModal({ person, onClose, onSave, onDelete }: { person: Rost
   };
 
   return (
+    <>
     <div className="scrim" onClick={onClose}>
       <div className="modal sm" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
         <div className="h">
@@ -108,6 +113,23 @@ function RosterUpdateModal({ person, onClose, onSave, onDelete }: { person: Rost
             <div className="input-group">
               <label style={{ display: 'block', marginBottom: 5, fontSize: 12, color: 'var(--ink-3)' }}>טלפון מבצעי</label>
               <input type="tel" value={operationalPhone} onChange={e => setOperationalPhone(e.target.value)} placeholder="רדיו / מוצפן" style={inputStyle} />
+            </div>
+          </div>
+
+          {/* קואורדינטות מיקום */}
+          <div className="input-group">
+            <label style={{ display: 'block', marginBottom: 5, fontSize: 12, color: 'var(--ink-3)' }}>מיקום כוח (קואורדינטות)</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input 
+                type="text" 
+                value={mapCoords} 
+                onChange={e => setMapCoords(e.target.value)} 
+                placeholder='lat,lng (לדוגמה: 32.182,35.281)' 
+                style={inputStyle} 
+              />
+              <button type="button" className="btn icon ghost" onClick={() => setShowMapPicker(true)} data-tooltip="בחר מהמפה">
+                <Icon name="Map" />
+              </button>
             </div>
           </div>
 
@@ -166,9 +188,15 @@ function RosterUpdateModal({ person, onClose, onSave, onDelete }: { person: Rost
         </form>
       </div>
     </div>
+    {showMapPicker && (
+      <MapPicker 
+        initialCoords={mapCoords} 
+        onSelect={(c) => { setMapCoords(c); setShowMapPicker(false); }} 
+        onClose={() => setShowMapPicker(false)} 
+      />
+    )}
+    </>
   );
-}
-
 function EditIncidentModal({ incident, onClose, onSave }: { incident: RoutineIncident, onClose: () => void, onSave: () => void }) {
   const [form, setForm] = useState({
     type: incident.type || '',
@@ -350,7 +378,8 @@ function NewIncidentModal({ onClose, onSave }: { onClose: () => void, onSave: ()
 }
 
 function NewPersonModal({ onClose, onSave }: { onClose: () => void, onSave: () => void }) {
-  const [form, setForm] = useState({ name: '', role: 'סייר', phone: '', state: 'field' });
+  const [form, setForm] = useState({ name: '', role: 'סייר', phone: '', state: 'field', map_coords: '' });
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
@@ -376,6 +405,7 @@ function NewPersonModal({ onClose, onSave }: { onClose: () => void, onSave: () =
   };
 
   return (
+    <>
     <div className="scrim" onClick={onClose}>
       <div className="modal sm" onClick={e => e.stopPropagation()}>
         <div className="h"><h3>הוספת בעל תפקיד</h3></div>
@@ -403,6 +433,22 @@ function NewPersonModal({ onClose, onSave }: { onClose: () => void, onSave: () =
               <label>טלפון</label>
               <input type="tel" className="input" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
             </div>
+            {/* מיקום (קואורדינטות) */}
+            <div className="field">
+              <label>מיקום כוח (קואורדינטות)</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input 
+                  type="text" 
+                  className="input" 
+                  placeholder="lat,lng (לדוגמה: 32.182,35.281)" 
+                  value={form.map_coords} 
+                  onChange={e => setForm({ ...form, map_coords: e.target.value })} 
+                />
+                <button type="button" className="btn icon ghost" onClick={() => setShowMapPicker(true)} data-tooltip="בחר מהמפה">
+                  <Icon name="Map" />
+                </button>
+              </div>
+            </div>
           </div>
           <div className="f">
             <button type="submit" className="btn brand" disabled={loading || !form.name.trim()}>{loading ? 'מוסיף...' : 'הוסף'}</button>
@@ -411,6 +457,14 @@ function NewPersonModal({ onClose, onSave }: { onClose: () => void, onSave: () =
         </form>
       </div>
     </div>
+    {showMapPicker && (
+      <MapPicker 
+        initialCoords={form.map_coords} 
+        onSelect={(c) => { setForm({ ...form, map_coords: c }); setShowMapPicker(false); }} 
+        onClose={() => setShowMapPicker(false)} 
+      />
+    )}
+    </>
   );
 }
 

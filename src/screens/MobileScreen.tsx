@@ -10,12 +10,16 @@ export function MobileScreen({ data }: { data: { activeEvent: { startedAt: numbe
   const [reportLocation, setReportLocation] = useState('');
   const [media, setMedia] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const isStandalone = window.location.pathname === '/mobile';
 
-  // 2FA State
-  const [verified, setVerified] = useState(() => sessionStorage.getItem('mobile_2fa') === 'true');
-  const [otp, setOtp] = useState('');
-  const [otpRequested, setOtpRequested] = useState(false);
-  const [otpLoading, setOtpLoading] = useState(false);
+  // Auth State
+  const [mobileUser, setMobileUser] = useState<{ name: string; email: string; role: string } | null>(() => {
+    try { return JSON.parse(sessionStorage.getItem('mobile_user') || 'null'); } catch { return null; }
+  });
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
   // Offline State
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -103,7 +107,7 @@ export function MobileScreen({ data }: { data: { activeEvent: { startedAt: numbe
 
   const handleSubmitReport = async () => {
     if (!reportText.trim()) return;
-    const payload = { author: 'נטע פרץ', text: reportText + (reportLocation ? ` (מיקום: ${reportLocation})` : ''), media };
+    const payload = { author: mobileUser?.name || 'שדה', text: reportText + (reportLocation ? ` (מיקום: ${reportLocation})` : ''), media };
 
     if (!isOnline) {
       const newQueue = [...offlineQueue, payload];
@@ -138,86 +142,85 @@ export function MobileScreen({ data }: { data: { activeEvent: { startedAt: numbe
     }
   };
 
-  const handleRequestOTP = async () => {
-    setOtpLoading(true);
-    try {
-      const res = await fetch('/api/mobile/request-otp', { method: 'POST' });
-      if (res.ok) {
-        setOtpRequested(true);
-        toast('קוד נשלח למוקדן — בקש ממנו את הקוד', 'info');
-      } else {
-        toast('שגיאה בבקשת קוד', 'error');
-      }
-    } catch {
-      toast('שגיאת תקשורת', 'error');
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  const handleVerifyOTP = async (e: React.FormEvent) => {
+  const handleMobileLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setOtpLoading(true);
+    setLoginLoading(true);
+    setLoginError('');
     try {
-      const res = await fetch('/api/mobile/verify-otp', {
+      const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: otp }),
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
-      if (res.ok) {
-        sessionStorage.setItem('mobile_2fa', 'true');
-        setVerified(true);
-        toast('אומתת בהצלחה', 'success');
-      } else {
-        const data = await res.json();
-        toast(data.error || 'קוד שגוי', 'error');
-        setOtp('');
-      }
-    } catch {
-      toast('שגיאת תקשורת', 'error');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'שגיאת כניסה');
+      sessionStorage.setItem('mobile_user', JSON.stringify(data.user));
+      sessionStorage.setItem('mobile_token', data.token);
+      setMobileUser(data.user);
+      toast('ברוך הבא, ' + data.user.name, 'success');
+    } catch (err: unknown) {
+      setLoginError(err instanceof Error ? err.message : 'שגיאה');
     } finally {
-      setOtpLoading(false);
+      setLoginLoading(false);
     }
   };
 
-  if (!verified) {
+  const handleMobileLogout = () => {
+    sessionStorage.removeItem('mobile_user');
+    sessionStorage.removeItem('mobile_token');
+    setMobileUser(null);
+  };
+
+  if (!mobileUser) {
     return (
-      <div className="phone-stage">
-        <div className="phone">
-          <div className="phone-screen" style={{ background: '#0e131b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-            <Icon name="Shield" lg />
-            <h2 style={{ fontSize: 20, marginTop: 16 }}>אימות כניסה לשטח</h2>
-            <p style={{ fontSize: 13, color: 'var(--ink-3)', textAlign: 'center', marginBottom: 24 }}>
-              {otpRequested ? 'הזן את הקוד שקיבלת מהמוקדן' : 'לחץ לבקשת קוד חד-פעמי מהמוקד'}
-            </p>
-            {!otpRequested ? (
-              <button
-                className="btn brand"
-                style={{ justifyContent: 'center', width: '100%' }}
-                onClick={handleRequestOTP}
-                disabled={otpLoading}
-              >
-                {otpLoading ? 'שולח בקשה...' : 'בקש קוד OTP מהמוקד'}
-              </button>
-            ) : (
-              <form onSubmit={handleVerifyOTP} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className={isStandalone ? 'standalone-stage' : 'phone-stage'}>
+        <div className={isStandalone ? 'standalone-phone' : 'phone'}>
+          <div className={isStandalone ? 'standalone-screen' : 'phone-screen'} style={{ background: '#0a0f16', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 28 }}>
+            <div className="brand" style={{ flexDirection: 'column', gap: 12, marginBottom: 28, alignItems: 'center' }}>
+              <div className="mark" style={{ width: 52, height: 52 }} />
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--ink-1)' }}>מוקד שומרון</div>
+              <div style={{ fontSize: 12, color: 'var(--ink-4)', marginTop: -6 }}>אפליקציית שטח</div>
+            </div>
+            <form onSubmit={handleMobileLogin} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div className="field">
+                <label>דוא"ל</label>
                 <input
-                  type="number"
-                  autoFocus
-                  className="input mono"
-                  placeholder="קוד 6 ספרות"
-                  value={otp}
-                  onChange={e => setOtp(e.target.value)}
-                  style={{ textAlign: 'center', fontSize: 24, letterSpacing: '0.2em' }}
+                  className="input"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="your@email.com"
+                  value={loginEmail}
+                  onChange={e => setLoginEmail(e.target.value)}
+                  required
                 />
-                <button type="submit" className="btn brand" style={{ justifyContent: 'center' }} disabled={otp.length < 6 || otpLoading}>
-                  {otpLoading ? 'מאמת...' : 'אמת והיכנס'}
-                </button>
-                <button type="button" className="btn ghost" style={{ justifyContent: 'center', fontSize: 12 }} onClick={() => { setOtpRequested(false); setOtp(''); }}>
-                  בקש קוד חדש
-                </button>
-              </form>
-            )}
+              </div>
+              <div className="field">
+                <label>סיסמה</label>
+                <input
+                  className="input"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  value={loginPassword}
+                  onChange={e => setLoginPassword(e.target.value)}
+                  required
+                />
+              </div>
+              {loginError && (
+                <div style={{ fontSize: 12, color: 'var(--red)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 6, padding: '8px 10px' }}>
+                  {loginError}
+                </div>
+              )}
+              <button
+                type="submit"
+                className="btn brand"
+                style={{ justifyContent: 'center', marginTop: 4 }}
+                disabled={loginLoading}
+              >
+                <Icon name="LogIn" />
+                {loginLoading ? 'מתחבר...' : 'כניסה למערכת'}
+              </button>
+            </form>
           </div>
         </div>
       </div>
@@ -225,22 +228,24 @@ export function MobileScreen({ data }: { data: { activeEvent: { startedAt: numbe
   }
 
   return (
-    <div className="phone-stage">
-      <div style={{ maxWidth: 340, color: 'var(--ink-2)', fontSize: 13, lineHeight: 1.7 }}>
-        <div className="uc" style={{ marginBottom: 8 }}>ממשק מדווח שטח</div>
-        <h2 style={{ margin: '0 0 12px', fontSize: 20, color: 'var(--ink-1)', fontWeight: 600, letterSpacing: '-.01em' }}>
-          אפליקציה לצופים ובעלי תפקידים
-        </h2>
-        <p>גרסה ניידת לצופים ובעלי תפקידים בשטח. מאפשרת יצירת דיווחים, העלאת מדיה (תמונות / וידאו עד 10MB), וצפייה במסך החירום בזמן אמת.</p>
-        <ul style={{ paddingInlineStart: 18, marginTop: 10 }}>
-          <li>תמונות מתכווצות בצד הלקוח לפני שליחה</li>
-          <li>דיווחים מקומיים נשמרים במצב Offline ונשלחים אוטומטית עם חיבור הרשת</li>
-          <li>2FA – קוד OTP לכניסה</li>
-        </ul>
-      </div>
+    <div className={isStandalone ? 'standalone-stage' : 'phone-stage'}>
+      {!isStandalone && (
+        <div style={{ maxWidth: 340, color: 'var(--ink-2)', fontSize: 13, lineHeight: 1.7 }}>
+          <div className="uc" style={{ marginBottom: 8 }}>ממשק מדווח שטח</div>
+          <h2 style={{ margin: '0 0 12px', fontSize: 20, color: 'var(--ink-1)', fontWeight: 600, letterSpacing: '-.01em' }}>
+            אפליקציה לצופים ובעלי תפקידים
+          </h2>
+          <p>גרסה ניידת לצופים ובעלי תפקידים בשטח. מאפשרת יצירת דיווחים, העלאת מדיה (תמונות / וידאו עד 10MB), וצפייה במסך החירום בזמן אמת.</p>
+          <ul style={{ paddingInlineStart: 18, marginTop: 10 }}>
+            <li>תמונות מתכווצות בצד הלקוח לפני שליחה</li>
+            <li>דיווחים מקומיים נשמרים במצב Offline ונשלחים אוטומטית עם חיבור הרשת</li>
+            <li>2FA – קוד OTP לכניסה</li>
+          </ul>
+        </div>
+      )}
 
-      <div className="phone">
-        <div className="phone-screen">
+      <div className={isStandalone ? 'standalone-phone' : 'phone'}>
+        <div className={isStandalone ? 'standalone-screen' : 'phone-screen'}>
           <div className="phone-status">
             <span>{fmtHM(now)}</span>
             <span style={{ display: 'flex', gap: 6, alignItems: 'center', color: isOnline ? 'inherit' : '#ffb4b4' }}>
@@ -351,16 +356,19 @@ export function MobileScreen({ data }: { data: { activeEvent: { startedAt: numbe
             {tab === 'me' && (
               <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div className="av" style={{ width: 48, height: 48, borderRadius: 12, background: 'linear-gradient(135deg,#3b4a63,#1f2937)', display: 'grid', placeItems: 'center', fontSize: 18, fontWeight: 700, color: '#dbe4f0' }}>נפ</div>
+                  <div className="av" style={{ width: 48, height: 48, borderRadius: 12, background: 'linear-gradient(135deg,#3b4a63,#1f2937)', display: 'grid', placeItems: 'center', fontSize: 18, fontWeight: 700, color: '#dbe4f0' }}>{mobileUser.name.slice(0, 2)}</div>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 15 }}>נטע פרץ</div>
-                    <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>צופה · neta@idf.il</div>
+                    <div style={{ fontWeight: 600, fontSize: 15 }}>{mobileUser.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>{mobileUser.role === 'admin' ? 'מנהל מערכת' : 'צופה'} · {mobileUser.email}</div>
                   </div>
                 </div>
                 <div style={{ padding: 12, background: 'rgba(34,197,94,.08)', border: '1px solid rgba(34,197,94,.3)', borderRadius: 8, fontSize: 12, color: '#9be8b6', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Icon name="Check" /> מחובר · 2FA פעיל
+                  <Icon name="Check" /> מחובר
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>גרסת אפליקציה: v2.4.0</div>
+                <button className="btn ghost" style={{ justifyContent: 'center' }} onClick={handleMobileLogout}>
+                  <Icon name="LogOut" /> התנתק
+                </button>
+                <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>גרסת אפליקציה: v2.5.0</div>
               </div>
             )}
 

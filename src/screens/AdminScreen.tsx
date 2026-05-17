@@ -3,6 +3,7 @@ import { Icon } from '../components/Icons';
 import { cn, getRosterStateConfig } from '../lib/utils';
 import { toast } from '../components/Toast';
 import { DBRosterMember } from '../types';
+import { MapPicker } from '../components/MapPicker';
 
 interface User {
   email: string;
@@ -151,11 +152,12 @@ const STATES = [
   { v: 'unavailable', l: 'לא זמין' },
 ];
 
-const emptyMember = { name: '', role: '', task: '', phone: '', operational_phone: '', state: 'field', isOutOfSector: false, replacement: '', replacementPhone: '', returnTime: '' };
+const emptyMember = { name: '', role: '', task: '', phone: '', operational_phone: '', state: 'field', isOutOfSector: false, replacement: '', replacementPhone: '', returnTime: '', map_coords: '' };
 
 function RosterPanel({ members, onRosterChange }: { members: DBRosterMember[], onRosterChange: () => void }) {
   const [modal, setModal] = useState<{ open: boolean; member?: DBRosterMember | null }>({ open: false });
   const [form, setForm] = useState({ ...emptyMember });
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState('');
 
@@ -171,7 +173,8 @@ function RosterPanel({ members, onRosterChange }: { members: DBRosterMember[], o
       isOutOfSector: !!m.is_out_of_sector,
       replacement: m.replacement || '',
       replacementPhone: m.replacement_phone || '',
-      returnTime: m.return_time || ''
+      returnTime: m.return_time || '',
+      map_coords: m.map_coords || ''
     });
     setModal({ open: true, member: m });
   };
@@ -210,7 +213,8 @@ function RosterPanel({ members, onRosterChange }: { members: DBRosterMember[], o
               return_time: form.returnTime,
               state: stateToSave,
               phone: form.phone,
-              operational_phone: form.operational_phone
+              operational_phone: form.operational_phone,
+              map_coords: form.map_coords
             }),
           });
         } else if (form.isOutOfSector) {
@@ -227,7 +231,8 @@ function RosterPanel({ members, onRosterChange }: { members: DBRosterMember[], o
                 return_time: form.returnTime,
                 state: stateToSave,
                 phone: form.phone,
-                operational_phone: form.operational_phone
+                operational_phone: form.operational_phone,
+                map_coords: form.map_coords
               }),
             });
           }
@@ -299,6 +304,22 @@ function RosterPanel({ members, onRosterChange }: { members: DBRosterMember[], o
                     <label>טלפון מבצעי</label>
                     <input type="tel" value={form.operational_phone} onChange={e => setForm({ ...form, operational_phone: e.target.value })} placeholder="רדיו / מוצפן" style={inputStyle} />
                   </div>
+                  {/* קואורדינטות מיקום */}
+                  <div className="input-group" style={{ gridColumn: '1/-1' }}>
+                    <label>מיקום כוח (קואורדינטות)</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input 
+                        type="text" 
+                        value={form.map_coords} 
+                        onChange={e => setForm({ ...form, map_coords: e.target.value })} 
+                        placeholder="lat,lng (לדוגמה: 32.182,35.281)" 
+                        style={inputStyle} 
+                      />
+                      <button type="button" className="btn icon ghost" onClick={() => setShowMapPicker(true)} data-tooltip="בחר מהמפה">
+                        <Icon name="Map" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="f">
@@ -308,6 +329,13 @@ function RosterPanel({ members, onRosterChange }: { members: DBRosterMember[], o
             </form>
           </div>
         </div>
+      )}
+      {showMapPicker && (
+        <MapPicker 
+          initialCoords={form.map_coords} 
+          onSelect={(c) => { setForm({ ...form, map_coords: c }); setShowMapPicker(false); }} 
+          onClose={() => setShowMapPicker(false)} 
+        />
       )}
 
       <div className="panel" style={{ flex: 1, minHeight: 0 }}>

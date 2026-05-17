@@ -29,6 +29,7 @@ db.exec(`
     phone TEXT DEFAULT '',
     operational_phone TEXT DEFAULT '',
     replacement_phone TEXT DEFAULT '',
+    map_coords TEXT DEFAULT '',
     version INTEGER DEFAULT 1,
     is_deleted INTEGER DEFAULT 0,
     deleted_at TEXT
@@ -170,6 +171,7 @@ try { db.exec('ALTER TABLE active_event ADD COLUMN map_coords TEXT DEFAULT ""');
 try { db.exec('ALTER TABLE roster ADD COLUMN phone TEXT DEFAULT ""'); } catch {}
 try { db.exec('ALTER TABLE roster ADD COLUMN operational_phone TEXT DEFAULT ""'); } catch {}
 try { db.exec('ALTER TABLE roster ADD COLUMN replacement_phone TEXT DEFAULT ""'); } catch {}
+try { db.exec('ALTER TABLE roster ADD COLUMN map_coords TEXT DEFAULT ""'); } catch {}
 try { db.exec('ALTER TABLE shift_logs ADD COLUMN dispatchers TEXT DEFAULT \'[]\''); } catch {}
 // v2 migrations – version, soft-delete, audit
 try { db.exec('ALTER TABLE incidents ADD COLUMN version INTEGER DEFAULT 1'); } catch {}
@@ -198,6 +200,7 @@ try { db.exec('ALTER TABLE approvals ADD COLUMN media TEXT'); } catch {}
   if (!feedCols.includes('created_at'))  db.exec('ALTER TABLE feed ADD COLUMN created_at TEXT');
   if (!feedCols.includes('media'))       db.exec('ALTER TABLE feed ADD COLUMN media TEXT');
 }
+try { db.exec('ALTER TABLE incidents ADD COLUMN map_coords TEXT DEFAULT ""'); } catch {}
 // Indexes on v2 columns — must run after ALTER TABLE migrations above
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_incidents_deleted ON incidents(is_deleted)'); } catch {}
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_feed_deleted ON feed(is_deleted)'); } catch {}
