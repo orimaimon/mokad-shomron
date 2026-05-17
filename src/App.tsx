@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { MOKAD_DATA } from './data/mockData';
 import { Icon } from './components/Icons';
 import { useNow, fmtTime, fmtDate } from './hooks/useClock';
@@ -20,7 +20,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import { MokadData, User, NavItem, OpenEventFormData, DBFeedItem, DBIncident, DBRosterMember, DBActiveEventRaw } from './types';
 import { io } from 'socket.io-client';
-import { ToastProvider, toast, confirmDialog } from './components/Toast';
+import { ToastProvider, toast, confirmDialog, alertBanner } from './components/Toast';
 import { playNotificationSound, initAudio } from './lib/sounds';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import './App.css';
@@ -39,7 +39,16 @@ const NAV_ITEMS = [
   { k: 'admin', label: 'ניהול מערכת', icon: 'Shield', admin: true, hotkey: '' },
 ];
 
-function Sidebar({ screen, onScreen, user }: { screen: string; onScreen: (s: string) => void; user: User | null }) {
+function Sidebar({ screen, onScreen, user, pendingApprovals = 0, emergencyActive = false }: {
+  screen: string; onScreen: (s: string) => void; user: User | null;
+  pendingApprovals?: number; emergencyActive?: boolean;
+}) {
+  const getBadge = (k: string) => {
+    if (k === 'manage') return pendingApprovals;
+    if (k === 'emergency') return emergencyActive ? 1 : 0;
+    return 0;
+  };
+
   return (
     <>
       <div className="sidebar-placeholder" />
@@ -56,11 +65,25 @@ function Sidebar({ screen, onScreen, user }: { screen: string; onScreen: (s: str
         <nav className="nav">
           {NAV_ITEMS.map((it: NavItem) => {
             if (it.admin && user?.role !== 'admin') return null;
+            const badge = getBadge(it.k);
             return (
               <a key={it.k} className={cn(screen === it.k && 'on', it.cls)} onClick={() => onScreen(it.k)} data-tooltip={it.label}>
-                <div className="icon-wrap">
+                <div className="icon-wrap" style={{ position: 'relative' }}>
                   <span className="dot" />
                   <Icon name={it.icon} />
+                  {badge > 0 && (
+                    <span style={{
+                      position: 'absolute', top: -5, left: -4,
+                      minWidth: 15, height: 15, padding: '0 3px',
+                      background: it.k === 'emergency' ? 'var(--red)' : 'var(--amber)',
+                      color: it.k === 'emergency' ? '#fff' : '#000',
+                      borderRadius: 8, fontSize: 9, fontWeight: 700, lineHeight: 1,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      animation: 'badgePop 0.25s ease',
+                    }}>
+                      {badge > 9 ? '9+' : badge}
+                    </span>
+                  )}
                 </div>
                 <span className="label">{it.label}</span>
                 {it.hotkey && <span className="kbd mono">{it.hotkey}</span>}
@@ -409,6 +432,28 @@ function App() {
   const [feed, setFeed] = useState<DBFeedItem[]>([]);
   const [roster, setRoster] = useState<DBRosterMember[]>([]);
 
+  // Alert detection refs (null = not yet initialized, avoids firing on first load)
+  const prevApprovalsRef = useRef<number | null>(null);
+  const prevEmergencyRef = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    if (prevApprovalsRef.current === null) { prevApprovalsRef.current = pendingApprovals; return; }
+    if (pendingApprovals > prevApprovalsRef.current) {
+      const n = pendingApprovals - prevApprovalsRef.current;
+      alertBanner('approval', `${n > 1 ? `${n} דיווחי שדה חדשים` : 'דיווח שדה חדש'} ממתינ${n > 1 ? 'ים' : ''} לאישורך`, () => setScreen('manage'));
+      playNotificationSound('warning');
+    }
+    prevApprovalsRef.current = pendingApprovals;
+  }, [pendingApprovals]);
+
+  useEffect(() => {
+    if (prevEmergencyRef.current === null) { prevEmergencyRef.current = emergencyActive; return; }
+    if (emergencyActive && !prevEmergencyRef.current) {
+      alertBanner('emergency', 'אירוע חירום נפתח! עברו למסך חירום', () => setScreen('emergency'));
+    }
+    prevEmergencyRef.current = emergencyActive;
+  }, [emergencyActive]);
+
   // Theme & Settings
   const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('mokad_theme') || 'default');
@@ -749,6 +794,8 @@ function App() {
         screen={screen}
         onScreen={setScreen}
         user={user}
+        pendingApprovals={pendingApprovals}
+        emergencyActive={emergencyActive}
       />
       <div className="content-area">
         <TopHeader
