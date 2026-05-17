@@ -184,7 +184,7 @@
 - [x] ArchiveScreen: חיפוש/פילטר בדוחות ישנים
 - [ ] אין tests אוטומטיים
 - [ ] mobile.routes.ts (OTP) — קוד לגאסי, ניתן להסיר
-- [ ] RoutineScreen: טופס "אירוע חדש" לא כולל Map Picker לבחירת נ"צ (למרות ש-map_coords קיים ב-DB ו-API)
+- [x] RoutineScreen: טופס "אירוע חדש" כולל Map Picker לבחירת נ"צ (map_coords נשלח ל-API)
 - [ ] analytics + map routes — ללא JWT auth (עקבי עם שאר ה-GET routes, אך ניתן לשיקול)
 - [ ] ניהול נהלים (SOP Checklists): הוספת רשימת משימות אוטומטית לפי סוג אירוע ב-EmergencyScreen
 - [ ] מערכת התראות (Alerts): צלילים והתראות Toast בולטות כשיש דיווחי שדה חדשים או אירועי חירום
@@ -197,6 +197,7 @@
 ## ה-commit האחרון
 
 ```
+017f91b feat: add Map Picker to new incident form in RoutineScreen
 e50d96a fix: production build and server
 309f93c docs: update SANDBOX with latest commits and TS fix entry
 9c40a45 fix: resolve all TypeScript errors found during runtime check
