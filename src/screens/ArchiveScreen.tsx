@@ -104,6 +104,19 @@ interface ShiftReportData {
 
 // ── Report content components ─────────────────────────────────────────────
 
+function Signature() {
+  return (
+    <div style={{ marginTop: 40, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, fontSize: 12, color: '#555' }}>
+      <div>
+        <div style={{ borderTop: '1px solid #aaa', paddingTop: 6 }}>חתימת מנהל המשמרת</div>
+      </div>
+      <div>
+        <div style={{ borderTop: '1px solid #aaa', paddingTop: 6 }}>חתימת אחראי ביטחוני</div>
+      </div>
+    </div>
+  );
+}
+
 function ReportHeader({ title, subtitle, date, generatedAt }: ReportHeaderProps) {
   return (
     <div className="rp-header">
@@ -696,7 +709,7 @@ export function ArchiveScreen({ data: _data }: { data: MokadData }) {
   };
 
   const handleDownloadPdf = () => {
-    const el = document.querySelector('.report-paper');
+    const el = document.querySelector('.report-paper') as HTMLElement | null;
     if (!el) return;
     const kindLabel: Record<string, string> = {
       daily: 'שגרה-יומי', roster: 'כוח-אדם', event: 'אירוע', shift: 'משמרת', osint: 'OSINT',

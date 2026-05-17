@@ -197,6 +197,8 @@ function RosterUpdateModal({ person, onClose, onSave, onDelete }: { person: Rost
     )}
     </>
   );
+}
+
 function EditIncidentModal({ incident, onClose, onSave }: { incident: RoutineIncident, onClose: () => void, onSave: () => void }) {
   const [form, setForm] = useState({
     type: incident.type || '',

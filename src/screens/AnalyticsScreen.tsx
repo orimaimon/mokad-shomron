@@ -161,7 +161,7 @@ export function AnalyticsScreen() {
                     ))}
                   </Pie>
                   <Tooltip 
-                    formatter={(value: number, name: string) => [value, SEV_LABELS[name] || name]}
+                    formatter={(value, name) => [value as number, SEV_LABELS[name as string] || (name as string)]}
                     contentStyle={{ backgroundColor: 'var(--bg-1)', borderColor: 'var(--border-1)', borderRadius: 8 }}
                   />
                 </PieChart>
@@ -188,7 +188,7 @@ export function AnalyticsScreen() {
                   <Tooltip 
                     cursor={{ fill: 'var(--bg-2)' }}
                     contentStyle={{ backgroundColor: 'var(--bg-1)', borderColor: 'var(--border-1)', borderRadius: 8 }}
-                    formatter={(value: number) => [value, 'כמות']}
+                    formatter={(value) => [value as number, 'כמות']}
                   />
                   <Bar dataKey="value" fill="var(--brand)" radius={[0, 4, 4, 0]}>
                     {types.map((entry, index) => (

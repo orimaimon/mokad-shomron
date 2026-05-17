@@ -43,14 +43,15 @@ export function MobileScreen({ data }: { data: { activeEvent: { startedAt: numbe
 
     const flush = async () => {
       const token = sessionStorage.getItem('mobile_token');
-      const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       let q = [...stored];
       let synced = 0;
       for (let i = 0; i < q.length; i++) {
         try {
           await fetch('/api/approvals', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeader },
+            headers,
             body: JSON.stringify(q[i]),
           });
           q = q.slice(i + 1);
