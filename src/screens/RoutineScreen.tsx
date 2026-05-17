@@ -286,9 +286,11 @@ function NewIncidentModal({ onClose, onSave }: { onClose: () => void, onSave: ()
   const [formData, setFormData] = useState({
     type: 'תאונת דרכים',
     loc: '',
-    sev: 'amber'
+    sev: 'amber',
+    map_coords: '',
   });
   const [loading, setLoading] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<{ type: string; created_at: string } | null>(null);
 
   const checkDuplicate = async (location: string) => {
@@ -316,7 +318,7 @@ function NewIncidentModal({ onClose, onSave }: { onClose: () => void, onSave: ()
       const res = await fetch('/api/incidents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: formData.type, location: formData.loc, severity: formData.sev })
+        body: JSON.stringify({ type: formData.type, location: formData.loc, severity: formData.sev, map_coords: formData.map_coords })
       });
       if (res.ok) onSave();
     } finally {
@@ -325,6 +327,7 @@ function NewIncidentModal({ onClose, onSave }: { onClose: () => void, onSave: ()
   };
 
   return (
+    <>
     <div className="scrim" onClick={onClose}>
       <div className="modal sm" onClick={e => e.stopPropagation()}>
         <div className="h"><h3>פתיחת אירוע שגרה חדש</h3></div>
@@ -368,6 +371,21 @@ function NewIncidentModal({ onClose, onSave }: { onClose: () => void, onSave: ()
               <option value="red">גבוהה</option>
             </select>
           </div>
+          <div className="field">
+            <label>מיקום על המפה (קואורדינטות)</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                type="text"
+                className="input"
+                placeholder="lat,lng (לדוגמה: 32.182,35.281)"
+                value={formData.map_coords}
+                onChange={e => setFormData({ ...formData, map_coords: e.target.value })}
+              />
+              <button type="button" className="btn icon ghost" onClick={() => setShowMapPicker(true)} data-tooltip="בחר מהמפה">
+                <Icon name="Map" />
+              </button>
+            </div>
+          </div>
         </div>
         <div className="f">
           <button type="submit" className="btn brand" disabled={loading || !formData.loc.trim()}>פתח אירוע</button>
@@ -376,6 +394,14 @@ function NewIncidentModal({ onClose, onSave }: { onClose: () => void, onSave: ()
         </form>
       </div>
     </div>
+    {showMapPicker && (
+      <MapPicker
+        initialCoords={formData.map_coords}
+        onSelect={(c) => { setFormData({ ...formData, map_coords: c }); setShowMapPicker(false); }}
+        onClose={() => setShowMapPicker(false)}
+      />
+    )}
+  </>
   );
 }
 
